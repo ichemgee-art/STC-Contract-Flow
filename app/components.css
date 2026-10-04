@@ -2606,3 +2606,23 @@ html[dir="rtl"] .attachment-share {
     text-align: center;
   }
 }
+
+
+.attachment-success {
+  margin-top: 10px;
+  padding: 11px 13px;
+  border: 1px solid #bfe2d2;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #166b48;
+  background: #edf9f3;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.attachment-success svg {
+  flex: 0 0 auto;
+}
