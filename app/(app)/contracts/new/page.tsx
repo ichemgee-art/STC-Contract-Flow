@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { ContractForm } from "@/components/ContractForm";
 import { useLanguage } from "@/components/LanguageProvider";
 import { createContract } from "@/lib/contracts";
+import { playUiSound, primeUiAudio } from "@/lib/sounds";
 import type { ContractInput } from "@/types/contract";
 
 export default function NewContractPage() {
@@ -17,6 +18,7 @@ export default function NewContractPage() {
 
   async function submit(input: ContractInput) {
     if (!user || !profile?.active) return;
+    primeUiAudio();
     setBusy(true);
     setError("");
 
@@ -25,6 +27,7 @@ export default function NewContractPage() {
         uid: user.uid,
         displayName: profile.displayName,
       });
+      playUiSound("created");
       router.push("/contracts/" + reference.id);
     } catch {
       setError(t("createContractError"));
