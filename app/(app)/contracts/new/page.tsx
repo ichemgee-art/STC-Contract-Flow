@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { ContractForm } from "@/components/ContractForm";
+import { useLanguage } from "@/components/LanguageProvider";
 import { createContract } from "@/lib/contracts";
 import type { ContractInput } from "@/types/contract";
 
 export default function NewContractPage() {
   const { user, profile } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -25,7 +27,7 @@ export default function NewContractPage() {
       });
       router.push("/contracts/" + reference.id);
     } catch {
-      setError("Could not create the contract. Check your connection and permissions.");
+      setError(t("createContractError"));
       setBusy(false);
     }
   }
@@ -34,9 +36,9 @@ export default function NewContractPage() {
     <div className="page-stack form-page">
       <section className="page-intro">
         <div>
-          <p className="eyebrow">New record</p>
-          <h2>Add a contract in seconds.</h2>
-          <p>The workflow starts at “Stamped by STC” after the basic details are saved.</p>
+          <p className="eyebrow">{t("newRecord")}</p>
+          <h2>{t("addContractHeadline")}</h2>
+          <p>{t("newContractDescription")}</p>
         </div>
       </section>
       <ContractForm onSubmit={submit} busy={busy} error={error} />
