@@ -1,67 +1,22 @@
 "use client";
 
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  type DocumentData,
-  type DocumentSnapshot,
-  type Timestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
-
-const MAX_COMPRESSED_BYTES = 580_000;
-const MAX_DATA_URL_CHARS = 800_000;
+import { auth } from "@/lib/firebase";
 
 export interface ContractAttachment {
-  id: string;
+  pathname: string;
   name: string;
-  dataUrl: string;
-  contentType: "image/jpeg";
   size: number;
-  originalSize: number;
-  uploadedAt: Timestamp | null;
-  uploadedBy: string;
-  uploadedByName: string;
+  uploadedAt: string;
+  contentType: string;
 }
 
-function fromSnapshot(snapshot: DocumentSnapshot<DocumentData>): ContractAttachment {
-  const data = snapshot.data();
-  if (!data) throw new Error("Attachment document has no data.");
+const MAX_COMPRESSED_BYTES = 1_200_000;
 
-  return {
-    id: snapshot.id,
-    name: data.name ?? "contract-image.jpg",
-    dataUrl: data.dataUrl ?? "",
-    contentType: "image/jpeg",
-    size: Number(data.size ?? 0),
-    originalSize: Number(data.originalSize ?? 0),
-    uploadedAt: data.uploadedAt ?? null,
-    uploadedBy: data.uploadedBy ?? "",
-    uploadedByName: data.uploadedByName ?? "",
-  };
-}
-
-export function subscribeContractAttachments(
-  contractId: string,
-  onData: (attachments: ContractAttachment[]) => void,
-  onError?: (error: Error) => void,
-) {
-  const attachmentsQuery = query(
-    collection(db, "contracts", contractId, "attachments"),
-    orderBy("uploadedAt", "desc"),
-  );
-
-  return onSnapshot(
-    attachmentsQuery,
-    (snapshot) => onData(snapshot.docs.map(fromSnapshot)),
-    (error) => onError?.(error),
-  );
+async function authHeaders() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not signed in.");
+  const token = await user.getIdToken();
+  return { Authorization: `Bearer ${token}` };
 }
 
 function loadImage(file: File) {
@@ -96,15 +51,6 @@ function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
   });
 }
 
-function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(reader.error ?? new Error("Could not read image."));
-    reader.readAsDataURL(blob);
-  });
-}
-
 export async function optimizeContractImage(file: File) {
   if (!file.type.startsWith("image/")) {
     throw new Error("Only image files are supported.");
@@ -114,7 +60,7 @@ export async function optimizeContractImage(file: File) {
   let width = image.naturalWidth;
   let height = image.naturalHeight;
 
-  const maxDimension = 2400;
+  const maxDimension = 2800;
   if (Math.max(width, height) > maxDimension) {
     const ratio = maxDimension / Math.max(width, height);
     width = Math.round(width * ratio);
@@ -125,13 +71,12 @@ export async function optimizeContractImage(file: File) {
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Image processing is not available.");
 
-  let quality = 0.88;
+  let quality = 0.9;
   let blob: Blob | null = null;
 
   for (let attempt = 0; attempt < 7; attempt += 1) {
     canvas.width = width;
     canvas.height = height;
-
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
@@ -139,48 +84,85 @@ export async function optimizeContractImage(file: File) {
     blob = await canvasToBlob(canvas, quality);
     if (blob.size <= MAX_COMPRESSED_BYTES) break;
 
-    quality = Math.max(0.58, quality - 0.06);
+    quality = Math.max(0.62, quality - 0.05);
     if (attempt >= 2) {
-      width = Math.max(1100, Math.round(width * 0.88));
-      height = Math.max(1100, Math.round(height * 0.88));
+      width = Math.max(1400, Math.round(width * 0.9));
+      height = Math.max(1400, Math.round(height * 0.9));
     }
   }
 
-  if (!blob || blob.size > MAX_COMPRESSED_BYTES) {
-    throw new Error("Image is too large to optimize safely.");
-  }
+  if (!blob) throw new Error("Could not optimize image.");
 
-  const dataUrl = await blobToDataUrl(blob);
-  if (dataUrl.length > MAX_DATA_URL_CHARS) {
-    throw new Error("Optimized image is still too large.");
-  }
-
-  const baseName = file.name.replace(/\.[^.]+$/, "").slice(0, 150) || "contract-image";
-
-  return {
-    name: baseName + ".jpg",
-    dataUrl,
-    size: blob.size,
-    originalSize: file.size,
-  };
-}
-
-export async function addContractAttachment(
-  contractId: string,
-  file: File,
-  user: { uid: string; displayName: string },
-) {
-  const optimized = await optimizeContractImage(file);
-
-  return addDoc(collection(db, "contracts", contractId, "attachments"), {
-    ...optimized,
-    contentType: "image/jpeg",
-    uploadedAt: serverTimestamp(),
-    uploadedBy: user.uid,
-    uploadedByName: user.displayName,
+  const baseName = file.name.replace(/\.[^.]+$/, "").slice(0, 140) || "contract-image";
+  return new File([blob], baseName + ".jpg", {
+    type: "image/jpeg",
+    lastModified: Date.now(),
   });
 }
 
-export async function deleteContractAttachment(contractId: string, attachmentId: string) {
-  return deleteDoc(doc(db, "contracts", contractId, "attachments", attachmentId));
+export async function listContractAttachments(contractId: string) {
+  const headers = await authHeaders();
+  const response = await fetch(`/api/contracts/${encodeURIComponent(contractId)}/attachments`, {
+    headers,
+    cache: "no-store",
+  });
+
+  if (!response.ok) throw new Error("Could not load attachments.");
+  const payload = (await response.json()) as { attachments: ContractAttachment[] };
+  return payload.attachments;
+}
+
+export async function addContractAttachment(contractId: string, source: File) {
+  const file = await optimizeContractImage(source);
+  const headers = await authHeaders();
+  const body = new FormData();
+  body.append("file", file);
+
+  const response = await fetch(
+    `/api/contracts/${encodeURIComponent(contractId)}/attachments`,
+    {
+      method: "POST",
+      headers,
+      body,
+    },
+  );
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(payload?.error || "Could not upload attachment.");
+  }
+
+  const payload = (await response.json()) as { attachment: ContractAttachment };
+  return payload.attachment;
+}
+
+export async function deleteContractAttachment(contractId: string, pathname: string) {
+  const headers = await authHeaders();
+  const response = await fetch(
+    `/api/contracts/${encodeURIComponent(contractId)}/attachments`,
+    {
+      method: "DELETE",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ pathname }),
+    },
+  );
+
+  if (!response.ok) throw new Error("Could not delete attachment.");
+}
+
+export async function fetchContractAttachment(contractId: string, pathname: string) {
+  const headers = await authHeaders();
+  const response = await fetch(
+    `/api/contracts/${encodeURIComponent(contractId)}/attachments?pathname=${encodeURIComponent(pathname)}`,
+    {
+      headers,
+      cache: "no-store",
+    },
+  );
+
+  if (!response.ok) throw new Error("Could not load attachment.");
+  return response.blob();
 }
