@@ -1505,3 +1505,147 @@
     line-height: 1.7;
   }
 }
+
+
+/* Professional export suite */
+.page-export-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.export-suite {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.export-suite-main {
+  min-height: 44px;
+  padding: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(255,255,255,0.96);
+  box-shadow: var(--shadow-sm);
+}
+
+.export-suite-label {
+  padding-inline: 8px 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.export-button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  transition: 150ms ease;
+}
+
+.export-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.export-button.excel {
+  color: #17663f;
+  border-color: #cfe8db;
+  background: #edf8f2;
+}
+
+.export-button.excel:hover:not(:disabled) {
+  color: white;
+  border-color: #1f8a5b;
+  background: #1f8a5b;
+}
+
+.export-button.pdf {
+  color: #a23a3a;
+  border-color: #f0d1d1;
+  background: #fff2f2;
+}
+
+.export-button.pdf:hover:not(:disabled) {
+  color: white;
+  border-color: #c94a4a;
+  background: #c94a4a;
+}
+
+.export-suite-error {
+  max-width: 360px;
+  color: var(--red);
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: end;
+}
+
+.export-suite.compact .export-suite-main {
+  min-height: 40px;
+}
+
+@media (max-width: 760px) {
+  .page-intro {
+    align-items: flex-start;
+  }
+
+  .page-intro > .export-suite {
+    width: 100%;
+    justify-items: stretch;
+  }
+
+  .page-intro > .export-suite .export-suite-main,
+  .page-export-row .export-suite,
+  .page-export-row .export-suite-main {
+    width: 100%;
+  }
+
+  .page-export-row {
+    width: 100%;
+  }
+
+  .export-suite-main {
+    justify-content: stretch;
+  }
+
+  .export-suite-label {
+    flex: 1;
+  }
+
+  .export-button {
+    min-height: 40px;
+    padding-inline: 13px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .export-suite-main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 7px;
+  }
+
+  .export-suite-label {
+    grid-column: 1 / -1;
+    min-height: 26px;
+    justify-content: flex-start;
+  }
+
+  .export-button {
+    width: 100%;
+    min-height: 44px;
+  }
+}
