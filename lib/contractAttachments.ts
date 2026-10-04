@@ -98,9 +98,6 @@ export async function optimizeContractImage(file: File) {
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Image processing is not available.");
 
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-
   let quality = 0.94;
   let blob: Blob | null = null;
   let outputType = "image/webp";
@@ -108,6 +105,10 @@ export async function optimizeContractImage(file: File) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     canvas.width = width;
     canvas.height = height;
+    // Resizing a canvas resets the 2D context state, so quality settings must
+    // be restored on every compression pass.
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
