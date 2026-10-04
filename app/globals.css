@@ -1140,3 +1140,47 @@ html[dir="ltr"] .input-with-icon input {
 
   .login-mobile-brand strong { font-size: 15px; }
 }
+
+
+/* Contract reminder controls */
+.notification-toggle {
+  position: relative;
+}
+
+.notification-toggle.active {
+  color: var(--green);
+  border-color: #b8dfcf;
+  background: var(--green-soft);
+}
+
+.sidebar .notification-toggle {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.notification-toggle.active::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 2px white;
+}
+
+html[dir="rtl"] .notification-toggle.active::after {
+  right: auto;
+  left: 7px;
+}
+
+@media (max-width: 620px) {
+  .topbar-actions .notification-toggle span {
+    display: none;
+  }
+
+  .topbar-actions {
+    gap: 6px;
+  }
+}
