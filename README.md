@@ -193,4 +193,4 @@ contracts/{contractId}
 
 ## Deployment
 
-The app can be deployed to Vercel. Add the six `NEXT_PUBLIC_FIREBASE_...` environment variables in the Vercel project settings before the production deployment.
+The app can be deployed to Vercel. Add the six `NEXT_PUBLIC_FIREBASE_...` environment variables in the Vercel project settings before the production deployment. Redeploy after changing any `NEXT_PUBLIC_*` value so the new client configuration is included in the build.
