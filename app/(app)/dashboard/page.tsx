@@ -10,13 +10,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ExportButtons } from "@/components/ExportButtons";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLanguage } from "@/components/LanguageProvider";
 import { subscribeContracts } from "@/lib/contracts";
 import { getContractStatus, getProgress, STAGES, type ContractRecord } from "@/types/contract";
 
 export default function DashboardPage() {
-  const { t, stageLabel, locale } = useLanguage();
+  const { t, stageLabel, statusLabel, locale, language } = useLanguage();
   const [contracts, setContracts] = useState<ContractRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -28,6 +29,19 @@ export default function DashboardPage() {
       month: "short",
       year: "numeric",
     });
+  }
+
+  function formatStageDate(contract: ContractRecord, key: (typeof STAGES)[number]["key"]) {
+    const value = contract.stageDates[key];
+    return value
+      ? value.toDate().toLocaleString(locale, {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : language === "ar" ? "معلق" : "Pending";
   }
 
   useEffect(
@@ -73,8 +87,52 @@ export default function DashboardPage() {
     [contracts],
   );
 
+  const exportSheets = [{
+    name: language === "ar" ? "العقود" : "Contracts",
+    subtitle: language === "ar" ? "تقرير شامل لحالة العقود" : "Complete contract status report",
+    rows: contracts.map((contract) => {
+      const row: Record<string, string | number> = {
+        [language === "ar" ? "الشركة" : "Company"]: contract.companyName,
+        [language === "ar" ? "المندوب" : "Representative"]: contract.salesRepresentative,
+        [language === "ar" ? "نوع العقد" : "Contract Type"]: contract.contractType,
+        [language === "ar" ? "المنتج" : "Product"]: contract.product,
+      };
+
+      STAGES.forEach((stage) => {
+        row[stageLabel(stage.key)] = formatStageDate(contract, stage.key);
+      });
+
+      row[language === "ar" ? "الحالة الحالية" : "Current Status"] =
+        statusLabel(getContractStatus(contract.stages));
+      row[language === "ar" ? "نسبة الإنجاز" : "Progress"] = getProgress(contract.stages);
+      row[language === "ar" ? "تاريخ الإنشاء" : "Created"] = formatDate(contract);
+      return row;
+    }),
+  }];
+
+  const exportKpis = [
+    { label: t("totalContracts"), value: stats.total },
+    { label: t("inProgress"), value: stats.active },
+    { label: t("waitingClientStamp"), value: stats.waitingClient },
+    { label: t("completed"), value: stats.completed },
+    {
+      label: language === "ar" ? "نسبة الإكمال" : "Completion",
+      value: stats.completion + "%",
+    },
+  ];
+
   return (
     <div className="page-stack">
+      <div className="page-export-row">
+        <ExportButtons
+          filename={language === "ar" ? "STC-تقرير-العقود" : "STC-Contract-Report"}
+          title={language === "ar" ? "تقرير متابعة العقود" : "Contract Flow Report"}
+          subtitle={language === "ar" ? "ملخص تنفيذي شامل لحالة العقود" : "Executive overview of contract workflow"}
+          sheets={exportSheets}
+          kpis={exportKpis}
+          disabled={loading}
+        />
+      </div>
       <section className="dashboard-hero card">
         <div className="hero-copy">
           <p className="eyebrow">{t("contractLifecycle")}</p>
