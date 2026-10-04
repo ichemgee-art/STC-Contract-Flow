@@ -1,0 +1,116 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function activeMember() {
+      return signedIn()
+        && exists(memberPath())
+        && get(memberPath()).data.active == true;
+    }
+
+    function admin() {
+      return activeMember() && get(memberPath()).data.role == "admin";
+    }
+
+    function validStages(data) {
+      return data.stages.keys().hasOnly([
+          "stampedByUs",
+          "stampedByClient",
+          "downPayment",
+          "supply",
+          "settlement"
+        ])
+        && data.stages.stampedByUs is bool
+        && data.stages.stampedByClient is bool
+        && data.stages.downPayment is bool
+        && data.stages.supply is bool
+        && data.stages.settlement is bool
+        && (!data.stages.stampedByClient || data.stages.stampedByUs)
+        && (!data.stages.downPayment || data.stages.stampedByClient)
+        && (!data.stages.supply || data.stages.downPayment)
+        && (!data.stages.settlement || data.stages.supply);
+    }
+
+    function validDates(data) {
+      return data.stageDates.keys().hasOnly([
+          "stampedByUs",
+          "stampedByClient",
+          "downPayment",
+          "supply",
+          "settlement"
+        ])
+        && (data.stageDates.stampedByUs == null || data.stageDates.stampedByUs is timestamp)
+        && (data.stageDates.stampedByClient == null || data.stageDates.stampedByClient is timestamp)
+        && (data.stageDates.downPayment == null || data.stageDates.downPayment is timestamp)
+        && (data.stageDates.supply == null || data.stageDates.supply is timestamp)
+        && (data.stageDates.settlement == null || data.stageDates.settlement is timestamp)
+        && (data.stages.stampedByUs == (data.stageDates.stampedByUs != null))
+        && (data.stages.stampedByClient == (data.stageDates.stampedByClient != null))
+        && (data.stages.downPayment == (data.stageDates.downPayment != null))
+        && (data.stages.supply == (data.stageDates.supply != null))
+        && (data.stages.settlement == (data.stageDates.settlement != null));
+    }
+
+    function validContract(data) {
+      return data.keys().hasOnly([
+          "salesRepresentative",
+          "companyName",
+          "contractType",
+          "product",
+          "stages",
+          "stageDates",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "createdByName"
+        ])
+        && data.salesRepresentative is string
+        && data.salesRepresentative.size() >= 2
+        && data.salesRepresentative.size() <= 100
+        && data.companyName is string
+        && data.companyName.size() >= 2
+        && data.companyName.size() <= 160
+        && data.contractType is string
+        && data.contractType.size() >= 2
+        && data.contractType.size() <= 120
+        && data.product is string
+        && data.product.size() >= 1
+        && data.product.size() <= 120
+        && data.createdBy is string
+        && data.createdByName is string
+        && validStages(data)
+        && validDates(data);
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create, update, delete: if false;
+    }
+
+    match /contracts/{contractId} {
+      allow read: if activeMember();
+
+      allow create: if activeMember()
+        && validContract(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if activeMember()
+        && validContract(request.resource.data)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if admin();
+    }
+  }
+}
