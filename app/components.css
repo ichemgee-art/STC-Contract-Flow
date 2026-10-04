@@ -1156,3 +1156,352 @@
     left: 40px;
   }
 }
+
+
+/* Readability & mobile UX refinement */
+.notice { font-size: 13px; padding: 13px 15px; }
+.hero-copy > p:not(.eyebrow) { font-size: 13.5px; }
+.hero-score-ring span { font-size: 9.5px; }
+.hero-score > p { font-size: 10.5px; }
+.stat-card span { font-size: 11px; }
+.stat-card strong { font-size: 27px; }
+.section-heading h3,
+.form-section-heading h3 { font-size: 18px; }
+.section-heading > a,
+.section-heading > span { font-size: 11px; }
+.pipeline-label strong { font-size: 12px; }
+.pipeline-label span,
+.pipeline-row b { font-size: 10px; }
+.recent-company strong { font-size: 12px; }
+.recent-company span,
+.recent-meta > span { font-size: 10px; }
+.list-loading,
+.table-state,
+.detail-state,
+.empty-compact { font-size: 12px; }
+.empty-compact strong,
+.empty-state strong,
+.detail-state strong { font-size: 14px; }
+.empty-compact span,
+.empty-state span,
+.detail-state span { font-size: 11px; }
+.status-badge {
+  min-height: 28px;
+  padding: 6px 10px;
+  font-size: 10px;
+}
+.search-box { min-height: 48px; }
+.search-box input { height: 44px; font-size: 13px; }
+.filter-select { min-height: 48px; font-size: 13px; }
+.contracts-table th { font-size: 9.5px; }
+.table-company strong,
+.cell-main { font-size: 11px; }
+.table-company span,
+.cell-sub { font-size: 9.5px; }
+.mini-check { width: 30px; height: 30px; }
+.row-open { width: 36px; height: 36px; }
+.form-section-heading p:not(.eyebrow) { font-size: 12.5px; }
+.field small { font-size: 10px; line-height: 1.6; }
+.contract-detail-hero > div:first-child > p:last-child { font-size: 12px; }
+.detail-metric > span { font-size: 10px; }
+.detail-metric > strong { font-size: 12.5px; }
+.progress-number { font-size: 27px; }
+.stage-copy strong { font-size: 12.5px; }
+.stage-copy span { font-size: 10px; }
+.stage-index { font-size: 10px; }
+.stage-state { font-size: 9px; }
+.record-list dt { font-size: 10px; }
+.record-list dd { font-size: 11.5px; }
+.record-note { font-size: 10.5px; }
+
+@media (max-width: 760px) {
+  .dashboard-hero {
+    border-radius: 18px;
+    padding: 22px;
+  }
+
+  .contracts-table-card {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .contracts-mobile-list {
+    gap: 12px;
+    padding: 0;
+  }
+
+  .contract-mobile-card {
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .mobile-card-head strong {
+    font-size: 14px;
+  }
+
+  .mobile-card-head span,
+  .mobile-contract-meta span,
+  .mobile-card-foot > span {
+    font-size: 11px;
+  }
+
+  .mobile-contract-meta {
+    padding: 13px 0;
+    margin-top: 12px;
+  }
+
+  .mobile-stage-strip {
+    margin: 14px 0;
+    gap: 6px;
+  }
+
+  .mobile-stage {
+    min-height: 58px;
+    gap: 6px;
+  }
+
+  .mobile-stage > span {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 10px;
+  }
+
+  .mobile-stage small {
+    max-width: 68px;
+    font-size: 8px;
+    line-height: 1.35;
+  }
+
+  .detail-actions {
+    gap: 10px;
+  }
+
+  .detail-actions .button {
+    min-height: 48px;
+  }
+}
+
+@media (max-width: 620px) {
+  .dashboard-hero {
+    padding: 18px;
+  }
+
+  .hero-copy h2 {
+    font-size: 27px;
+    line-height: 1.28;
+  }
+
+  .hero-copy > p:not(.eyebrow) {
+    font-size: 13px;
+  }
+
+  .hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .hero-actions .button {
+    width: 100%;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    min-height: 104px;
+    padding: 14px;
+    border-radius: 15px;
+    align-items: flex-start;
+  }
+
+  .stat-card span {
+    font-size: 10.5px;
+    line-height: 1.5;
+  }
+
+  .stat-card strong {
+    font-size: 24px;
+  }
+
+  .pipeline-card,
+  .recent-card,
+  .workflow-card,
+  .record-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .pipeline-list {
+    gap: 18px;
+  }
+
+  .pipeline-row {
+    grid-template-columns: minmax(92px, 0.9fr) minmax(90px, 1fr) 34px;
+    gap: 8px;
+  }
+
+  .pipeline-label strong {
+    font-size: 10.5px;
+    line-height: 1.45;
+  }
+
+  .pipeline-label span,
+  .pipeline-row b {
+    font-size: 9px;
+  }
+
+  .recent-row {
+    padding: 14px 6px;
+    gap: 10px;
+  }
+
+  .recent-company strong { font-size: 13px; }
+  .recent-company span,
+  .recent-meta > span { font-size: 10px; }
+
+  .contract-toolbar {
+    padding: 10px;
+    gap: 8px;
+    border-radius: 15px;
+  }
+
+  .search-box,
+  .filter-select {
+    min-height: 50px;
+    border-radius: 12px;
+  }
+
+  .search-box input,
+  .filter-select {
+    font-size: 14px;
+  }
+
+  .contract-mobile-card {
+    padding: 15px;
+  }
+
+  .mobile-card-head strong { font-size: 14px; }
+  .mobile-card-head span { font-size: 10.5px; }
+
+  .mobile-stage-strip {
+    overflow-x: auto;
+    grid-template-columns: repeat(5, minmax(70px, 1fr));
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+
+  .mobile-stage {
+    min-width: 70px;
+  }
+
+  .mobile-stage small {
+    font-size: 9px;
+    max-width: none;
+  }
+
+  .contract-form {
+    padding: 18px 14px;
+    border-radius: 16px;
+  }
+
+  .form-grid {
+    padding-top: 18px;
+    gap: 0;
+  }
+
+  .form-actions {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .form-actions .button {
+    width: 100%;
+  }
+
+  .contract-detail-hero {
+    padding: 17px;
+    border-radius: 16px;
+  }
+
+  .contract-detail-hero h2 {
+    font-size: 23px;
+    line-height: 1.35;
+  }
+
+  .detail-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .detail-metrics {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .detail-metric {
+    min-height: auto;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 3px;
+  }
+
+  .detail-metric > svg,
+  .detail-metric > .progress-number {
+    grid-row: 1 / span 2;
+    margin: 0;
+  }
+
+  .detail-metric > span,
+  .detail-metric > strong,
+  .progress-metric .detail-progress-track {
+    grid-column: 2;
+  }
+
+  .detail-metric > span { font-size: 10.5px; }
+  .detail-metric > strong { font-size: 13px; }
+
+  .progress-number { font-size: 22px; }
+
+  .stage-row {
+    min-height: 76px;
+    grid-template-columns: 24px 42px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .stage-check {
+    width: 40px;
+    height: 40px;
+  }
+
+  .stage-copy strong {
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  .stage-copy span {
+    font-size: 10px;
+  }
+
+  .record-list > div {
+    padding: 14px 0;
+  }
+
+  .record-list dt { font-size: 10.5px; }
+  .record-list dd { font-size: 12px; }
+  .record-note { font-size: 11px; }
+
+  .notice {
+    font-size: 12px;
+    line-height: 1.7;
+  }
+}
