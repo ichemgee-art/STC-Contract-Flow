@@ -10,6 +10,7 @@ export interface ContractAttachment {
   contentType: string;
 }
 
+const TARGET_COMPRESSED_BYTES = 850_000;
 const MAX_COMPRESSED_BYTES = 1_200_000;
 
 async function authHeaders() {
@@ -38,14 +39,14 @@ function loadImage(file: File) {
   });
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
+function canvasToBlob(canvas: HTMLCanvasElement, quality: number, type: string) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
         if (blob) resolve(blob);
         else reject(new Error("Could not optimize image."));
       },
-      "image/jpeg",
+      type,
       quality,
     );
   });
@@ -60,7 +61,7 @@ export async function optimizeContractImage(file: File) {
   let width = image.naturalWidth;
   let height = image.naturalHeight;
 
-  const maxDimension = 2800;
+  const maxDimension = 2600;
   if (Math.max(width, height) > maxDimension) {
     const ratio = maxDimension / Math.max(width, height);
     width = Math.round(width * ratio);
@@ -71,31 +72,59 @@ export async function optimizeContractImage(file: File) {
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Image processing is not available.");
 
-  let quality = 0.9;
-  let blob: Blob | null = null;
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
 
-  for (let attempt = 0; attempt < 7; attempt += 1) {
+  let quality = 0.94;
+  let blob: Blob | null = null;
+  let outputType = "image/webp";
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
     canvas.width = width;
     canvas.height = height;
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
 
-    blob = await canvasToBlob(canvas, quality);
-    if (blob.size <= MAX_COMPRESSED_BYTES) break;
+    blob = await canvasToBlob(canvas, quality, outputType);
 
-    quality = Math.max(0.62, quality - 0.05);
-    if (attempt >= 2) {
-      width = Math.max(1400, Math.round(width * 0.9));
-      height = Math.max(1400, Math.round(height * 0.9));
+    if (blob.type !== "image/webp") {
+      outputType = "image/jpeg";
+      blob = await canvasToBlob(canvas, quality, outputType);
+    }
+
+    if (blob.size <= TARGET_COMPRESSED_BYTES) break;
+
+    if (quality > 0.86) {
+      quality = Math.max(0.86, quality - 0.025);
+    } else {
+      const longest = Math.max(width, height);
+      if (longest > 2050) {
+        const ratio = Math.max(2050 / longest, 0.9);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      } else {
+        break;
+      }
     }
   }
 
   if (!blob) throw new Error("Could not optimize image.");
 
+  if (blob.size > MAX_COMPRESSED_BYTES) {
+    const fallbackQuality = 0.84;
+    blob = await canvasToBlob(canvas, fallbackQuality, outputType);
+  }
+
+  if (blob.size > MAX_COMPRESSED_BYTES) {
+    throw new Error("Image is too large to optimize safely.");
+  }
+
   const baseName = file.name.replace(/\.[^.]+$/, "").slice(0, 140) || "contract-image";
-  return new File([blob], baseName + ".jpg", {
-    type: "image/jpeg",
+  const extension = outputType === "image/webp" ? ".webp" : ".jpg";
+
+  return new File([blob], baseName + extension, {
+    type: outputType,
     lastModified: Date.now(),
   });
 }
@@ -159,7 +188,7 @@ export async function fetchContractAttachment(contractId: string, pathname: stri
     `/api/contracts/${encodeURIComponent(contractId)}/attachments?pathname=${encodeURIComponent(pathname)}`,
     {
       headers,
-      cache: "no-store",
+      cache: "default",
     },
   );
 
