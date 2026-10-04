@@ -11,22 +11,24 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useLanguage } from "@/components/LanguageProvider";
 import { subscribeContracts } from "@/lib/contracts";
 import { getContractStatus, getProgress, STAGES, type ContractRecord } from "@/types/contract";
 
-function formatDate(contract: ContractRecord) {
-  if (!contract.createdAt) return "Just now";
-  return contract.createdAt.toDate().toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 export default function DashboardPage() {
+  const { t, stageLabel, locale } = useLanguage();
   const [contracts, setContracts] = useState<ContractRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  function formatDate(contract: ContractRecord) {
+    if (!contract.createdAt) return t("justNow");
+    return contract.createdAt.toDate().toLocaleDateString(locale, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
 
   useEffect(
     () =>
@@ -36,11 +38,11 @@ export default function DashboardPage() {
           setLoading(false);
         },
         () => {
-          setError("Could not load contracts. Check your Firebase setup and access.");
+          setError(t("loadContractsError"));
           setLoading(false);
         },
       ),
-    [],
+    [t],
   );
 
   const stats = useMemo(() => {
@@ -75,17 +77,15 @@ export default function DashboardPage() {
     <div className="page-stack">
       <section className="dashboard-hero card">
         <div className="hero-copy">
-          <p className="eyebrow">Contract lifecycle</p>
-          <h2>Everything moving through one clear flow.</h2>
-          <p>
-            See what is signed, paid, supplied and settled without opening multiple sheets.
-          </p>
+          <p className="eyebrow">{t("contractLifecycle")}</p>
+          <h2>{t("dashboardHeadline")}</h2>
+          <p>{t("dashboardDescription")}</p>
           <div className="hero-actions">
             <Link href="/contracts/new" className="button button-primary">
-              <Plus size={17} /> New Contract
+              <Plus size={17} /> {t("newContract")}
             </Link>
             <Link href="/contracts" className="button button-secondary">
-              View all contracts
+              {t("viewAllContracts")}
             </Link>
           </div>
         </div>
@@ -96,10 +96,10 @@ export default function DashboardPage() {
           >
             <div>
               <strong>{stats.completion}%</strong>
-              <span>completed</span>
+              <span>{t("completed")}</span>
             </div>
           </div>
-          <p>{stats.completed} of {stats.total} contracts fully settled</p>
+          <p>{stats.completed} / {stats.total} {t("contractsFullySettled")}</p>
         </div>
       </section>
 
@@ -108,19 +108,19 @@ export default function DashboardPage() {
       <section className="stats-grid">
         <article className="stat-card card">
           <div className="stat-icon"><Files size={20} /></div>
-          <div><span>Total contracts</span><strong>{loading ? "—" : stats.total}</strong></div>
+          <div><span>{t("totalContracts")}</span><strong>{loading ? "—" : stats.total}</strong></div>
         </article>
         <article className="stat-card card">
           <div className="stat-icon blue"><CircleDot size={20} /></div>
-          <div><span>In progress</span><strong>{loading ? "—" : stats.active}</strong></div>
+          <div><span>{t("inProgress")}</span><strong>{loading ? "—" : stats.active}</strong></div>
         </article>
         <article className="stat-card card">
           <div className="stat-icon gold"><FileClock size={20} /></div>
-          <div><span>Waiting client stamp</span><strong>{loading ? "—" : stats.waitingClient}</strong></div>
+          <div><span>{t("waitingClientStamp")}</span><strong>{loading ? "—" : stats.waitingClient}</strong></div>
         </article>
         <article className="stat-card card">
           <div className="stat-icon green"><CheckCircle2 size={20} /></div>
-          <div><span>Completed</span><strong>{loading ? "—" : stats.completed}</strong></div>
+          <div><span>{t("completed")}</span><strong>{loading ? "—" : stats.completed}</strong></div>
         </article>
       </section>
 
@@ -128,8 +128,8 @@ export default function DashboardPage() {
         <article className="pipeline-card card">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Pipeline</p>
-              <h3>Stage completion</h3>
+              <p className="eyebrow">{t("pipeline")}</p>
+              <h3>{t("stageCompletion")}</h3>
             </div>
             <TrendingUp size={19} />
           </div>
@@ -138,7 +138,7 @@ export default function DashboardPage() {
             {pipeline.map((stage) => (
               <div className="pipeline-row" key={stage.key}>
                 <div className="pipeline-label">
-                  <strong>{stage.label}</strong>
+                  <strong>{stageLabel(stage.key)}</strong>
                   <span>{stage.count} / {contracts.length}</span>
                 </div>
                 <div className="pipeline-track">
@@ -153,19 +153,19 @@ export default function DashboardPage() {
         <article className="recent-card card">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Latest activity</p>
-              <h3>Recent contracts</h3>
+              <p className="eyebrow">{t("latestActivity")}</p>
+              <h3>{t("recentContracts")}</h3>
             </div>
-            <Link href="/contracts">View all</Link>
+            <Link href="/contracts">{t("viewAll")}</Link>
           </div>
 
           {loading ? (
-            <div className="list-loading">Loading contracts…</div>
+            <div className="list-loading">{t("loadingContracts")}</div>
           ) : contracts.length === 0 ? (
             <div className="empty-compact">
               <Files size={22} />
-              <strong>No contracts yet</strong>
-              <span>Add the first contract to start the flow.</span>
+              <strong>{t("noContractsYet")}</strong>
+              <span>{t("addFirstContract")}</span>
             </div>
           ) : (
             <div className="recent-list">
