@@ -1653,6 +1653,7 @@
 
 /* Contract attachments */
 .attachment-card {
+  border-top: 3px solid var(--gold);
   padding: 22px;
   overflow: hidden;
 }
@@ -1680,6 +1681,7 @@
 }
 
 .attachment-counter {
+  direction: ltr;
   min-width: 84px;
   min-height: 44px;
   padding: 0 12px;
@@ -1698,6 +1700,7 @@
 }
 
 .attachment-counter span {
+  white-space: nowrap;
   color: var(--muted);
   font-size: 11px;
 }
@@ -2120,4 +2123,30 @@ html[dir="rtl"] .attachment-delete {
   .attachment-modal-panel > header {
     padding: 10px;
   }
+}
+
+/* Contract documents: large readable preview, with a compact page selector. */
+.contract-document-layout { display: grid; gap: 16px; }
+.contract-document-preview { padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #f5f7fa; text-align: center; }
+.contract-document-preview .attachment-preview-button { height: clamp(280px, 48vh, 560px); width: 100%; aspect-ratio: auto; background: transparent; }
+.contract-document-preview .attachment-preview-button img { width: 100%; height: 100%; object-fit: contain; }
+.contract-document-preview > span { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; }
+.document-thumbnail-strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.document-thumbnail-strip .attachment-preview-button { height: 110px; }
+.document-thumbnail-strip .attachment-preview-button img { object-fit: contain; }
+.document-page-selected { border-color: var(--navy-700); box-shadow: 0 0 0 1px var(--navy-700); }
+.document-viewer-panel { height: calc(100dvh - 48px); max-height: none; display: flex; flex-direction: column; }
+.document-viewer-panel > header { flex: 0 0 auto; }
+.document-viewer-panel > header > strong { min-width: 0; flex: 1; }
+.document-zoom-toolbar { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px; border-bottom: 1px solid var(--line); flex: 0 0 auto; flex-wrap: wrap; }
+.document-zoom-toolbar output { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
+.document-zoom-toolbar > span { color: var(--muted); font-size: 11px; }
+.document-zoom-viewport { flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; overscroll-behavior: contain; background: #e9edf2; }
+.document-zoom-viewport img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; flex-shrink: 0; transform-origin: center; pointer-events: none; }
+@media (max-width: 760px) {
+  .document-thumbnail-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .contract-document-preview { padding: 8px; }
+  .document-viewer-panel { height: calc(100dvh - 20px); max-height: none; }
+  .document-zoom-toolbar { gap: 8px; }
+  .document-zoom-toolbar > span { flex-basis: 100%; text-align: center; }
 }

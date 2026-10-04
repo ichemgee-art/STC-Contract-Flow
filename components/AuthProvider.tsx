@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { auth, db } from "@/lib/firebase";
+import { clearAttachmentCaches, retainAttachmentUser } from "@/lib/attachmentCache";
 import type { UserProfile } from "@/types/user";
 
 interface AuthContextValue {
@@ -60,12 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
       if (!nextUser) {
+        await clearAttachmentCaches();
         setProfile(null);
         setLoading(false);
         return;
       }
 
       try {
+        await retainAttachmentUser(nextUser.uid);
         setProfile(await loadProfile(nextUser.uid));
       } finally {
         setLoading(false);
@@ -79,7 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       loading,
       refreshProfile,
-      logout: () => signOut(auth),
+      logout: async () => {
+        await clearAttachmentCaches();
+        await signOut(auth);
+      },
     }),
     [user, profile, loading],
   );

@@ -191,6 +191,15 @@ contracts/{contractId}
   createdByName
 ```
 
-## Deployment
+## Private contract documents
+
+- Up to five images per contract, enforced by the UI and authenticated API. Existing attachments are retained; contracts already above the limit cannot receive more uploads.
+- The document preview sits beside the core contract information, before workflow. Select a thumbnail, then open the large preview for fit-to-screen viewing, zoom controls, wheel/pinch zoom and bounded panning after zoom. Escape closes the viewer; keyboard `+`, `-`, and `0` control zoom.
+- Image bytes are cached for 24 hours in user-scoped CacheStorage entries keyed by the authenticated API path. Tokens are never persisted in cache entries. Attachment listings remain authenticated and uncached. Expired images revalidate with ETag/304; unavailable storage falls back to authenticated downloads.
+- Deletion removes the cached image. Logout clears all application image caches, and account changes remove other users' caches. Generation guards prevent in-flight downloads from repopulating caches after deletion or logout, including across tabs.
+- API image responses use `private, no-store`, preventing a second unmanaged HTTP cache from retaining private bytes. The application cache owns image reuse and cleanup.
+- Uploads use a conditional-write lease in private Blob storage to serialize the count check and upload across Vercel instances. The lease expires after two minutes and storage operations are bounded below that duration. A concurrent upload returns HTTP 409 and can be retried. Firebase Auth, Firestore permissions and workflow are unchanged.
+
+## Deployment configuration
 
 The app can be deployed to Vercel. Add the six `NEXT_PUBLIC_FIREBASE_...` environment variables in the Vercel project settings before the production deployment. Redeploy after changing any `NEXT_PUBLIC_*` value so the new client configuration is included in the build.

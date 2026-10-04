@@ -1,16 +1,16 @@
 import { del, get, list, put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { requireActiveMember } from "@/lib/serverAuth";
+import { acquireAttachmentLock } from "@/lib/attachmentLock";
 
 export const runtime = "nodejs";
 
-const MAX_ATTACHMENTS = 20;
+const MAX_ATTACHMENTS = 5;
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
-  "application/pdf",
 ]);
 
 function cleanFilename(name: string) {
@@ -71,7 +71,8 @@ export async function GET(
 
       const commonHeaders = {
         ETag: result.blob.etag,
-        "Cache-Control": "private, no-cache",
+        "Cache-Control": "private, no-store",
+        Vary: "Authorization",
         "X-Content-Type-Options": "nosniff",
       };
 
@@ -104,7 +105,7 @@ export async function GET(
       contentType: inferContentType(blob.pathname),
     }));
 
-    return NextResponse.json({ attachments });
+    return NextResponse.json({ attachments }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (cause) {
     return errorResponse(cause);
   }
@@ -114,12 +115,21 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  let release: (() => Promise<void>) | undefined;
   try {
     const { id } = await context.params;
     await requireActiveMember(request, id);
 
     const prefix = prefixFor(id);
-    const current = await list({ prefix, limit: MAX_ATTACHMENTS + 1 });
+    // Parse/validate the body before taking the distributed upload lease.
+    const form = await request.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) return NextResponse.json({ error: "File is required." }, { status: 400 });
+    if (!ALLOWED_TYPES.has(file.type)) return NextResponse.json({ error: "Unsupported file type." }, { status: 415 });
+    if (file.size <= 0 || file.size > MAX_FILE_BYTES) return NextResponse.json({ error: "File is too large." }, { status: 413 });
+    release = await acquireAttachmentLock(id);
+    const signal = AbortSignal.timeout(45_000);
+    const current = await list({ prefix, limit: MAX_ATTACHMENTS + 1, abortSignal: signal });
 
     if (current.blobs.length >= MAX_ATTACHMENTS) {
       return NextResponse.json(
@@ -128,27 +138,14 @@ export async function POST(
       );
     }
 
-    const form = await request.formData();
-    const file = form.get("file");
-
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: "File is required." }, { status: 400 });
-    }
-
-    if (!ALLOWED_TYPES.has(file.type)) {
-      return NextResponse.json({ error: "Unsupported file type." }, { status: 415 });
-    }
-
-    if (file.size <= 0 || file.size > MAX_FILE_BYTES) {
-      return NextResponse.json({ error: "File is too large." }, { status: 413 });
-    }
-
     const filename = cleanFilename(file.name);
     const pathname = `${prefix}${Date.now()}-${crypto.randomUUID()}--${filename}`;
 
     const blob = await put(pathname, file, {
       access: "private",
       addRandomSuffix: false,
+      contentType: file.type,
+      abortSignal: signal,
     });
 
     return NextResponse.json({
@@ -162,6 +159,8 @@ export async function POST(
     });
   } catch (cause) {
     return errorResponse(cause);
+  } finally {
+    await release?.();
   }
 }
 

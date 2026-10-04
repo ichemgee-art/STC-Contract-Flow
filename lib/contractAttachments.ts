@@ -1,6 +1,9 @@
 "use client";
 
 import { auth } from "@/lib/firebase";
+import { cachedAttachment, clearAttachmentCaches, invalidateAttachment } from "@/lib/attachmentCache";
+
+const authorizedContracts = new Set<string>();
 
 export interface ContractAttachment {
   pathname: string;
@@ -130,13 +133,20 @@ export async function optimizeContractImage(file: File) {
 }
 
 export async function listContractAttachments(contractId: string) {
+  const uid = auth.currentUser?.uid;
   const headers = await authHeaders();
   const response = await fetch(`/api/contracts/${encodeURIComponent(contractId)}/attachments`, {
     headers,
     cache: "no-store",
   });
 
-  if (!response.ok) throw new Error("Could not load attachments.");
+  if (!response.ok) {
+    authorizedContracts.delete(`${uid}/${contractId}`);
+    if (response.status === 401 || response.status === 403 || response.status === 404) await clearAttachmentCaches();
+    throw new Error("Could not load attachments.");
+  }
+  if (auth.currentUser?.uid !== uid) throw new Error("Authentication changed.");
+  authorizedContracts.add(`${uid}/${contractId}`);
   const payload = (await response.json()) as { attachments: ContractAttachment[] };
   return payload.attachments;
 }
@@ -166,6 +176,7 @@ export async function addContractAttachment(contractId: string, source: File) {
 }
 
 export async function deleteContractAttachment(contractId: string, pathname: string) {
+  const uid = auth.currentUser?.uid;
   const headers = await authHeaders();
   const response = await fetch(
     `/api/contracts/${encodeURIComponent(contractId)}/attachments`,
@@ -180,18 +191,17 @@ export async function deleteContractAttachment(contractId: string, pathname: str
   );
 
   if (!response.ok) throw new Error("Could not delete attachment.");
+  if (uid) await invalidateAttachment(uid, attachmentUrl(contractId, pathname));
+}
+
+function attachmentUrl(contractId: string, pathname: string) {
+  return `/api/contracts/${encodeURIComponent(contractId)}/attachments?pathname=${encodeURIComponent(pathname)}`;
 }
 
 export async function fetchContractAttachment(contractId: string, pathname: string) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("Not signed in.");
+  if (!authorizedContracts.has(`${uid}/${contractId}`)) await listContractAttachments(contractId);
   const headers = await authHeaders();
-  const response = await fetch(
-    `/api/contracts/${encodeURIComponent(contractId)}/attachments?pathname=${encodeURIComponent(pathname)}`,
-    {
-      headers,
-      cache: "default",
-    },
-  );
-
-  if (!response.ok) throw new Error("Could not load attachment.");
-  return response.blob();
+  return cachedAttachment(uid, attachmentUrl(contractId, pathname), headers, () => auth.currentUser?.uid === uid);
 }

@@ -1,16 +1,15 @@
 "use client";
 
 import {
-  Download,
   Expand,
   Image as ImageIcon,
   LoaderCircle,
   Plus,
   Trash2,
   UploadCloud,
-  X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ContractImageViewer } from "@/components/ContractImageViewer";
 import { useLanguage } from "@/components/LanguageProvider";
 import {
   addContractAttachment,
@@ -21,7 +20,7 @@ import {
 } from "@/lib/contractAttachments";
 import { playUiSound, primeUiAudio } from "@/lib/sounds";
 
-const MAX_ATTACHMENTS = 20;
+const MAX_ATTACHMENTS = 5;
 
 function formatBytes(value: number) {
   if (!value) return "0 KB";
@@ -41,16 +40,21 @@ function AttachmentThumbnail({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [src, setSrc] = useState("");
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
     if (src || loading) return src;
     setLoading(true);
+    setFailed(false);
 
     try {
       const blob = await fetchContractAttachment(contractId, attachment.pathname);
       const next = URL.createObjectURL(blob);
       setSrc(next);
       return next;
+    } catch {
+      setFailed(true);
+      return "";
     } finally {
       setLoading(false);
     }
@@ -85,6 +89,7 @@ function AttachmentThumbnail({
       ref={buttonRef}
       type="button"
       className="attachment-preview-button"
+      aria-label={attachment.name}
       onClick={() => {
         if (src) {
           onOpen(attachment, src);
@@ -100,6 +105,7 @@ function AttachmentThumbnail({
       ) : (
         <span className="attachment-image-placeholder">
           {loading ? <LoaderCircle size={22} className="spin" /> : <ImageIcon size={22} />}
+          {failed ? <small>Retry / إعادة المحاولة</small> : null}
         </span>
       )}
       <span className="attachment-expand"><Expand size={16} /></span>
@@ -116,9 +122,12 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<{ attachment: ContractAttachment; url: string } | null>(null);
+  const [selectedPath, setSelectedPath] = useState("");
+  const closePreview = useCallback(() => setPreview(null), []);
   const [dragging, setDragging] = useState(false);
 
   const ar = language === "ar";
+  const selectedAttachment = attachments.find(item => item.pathname === selectedPath) || attachments[0];
 
   const reload = useCallback(async () => {
     try {
@@ -134,11 +143,14 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
 
   useEffect(() => {
     setLoading(true);
+    setAttachments([]);
+    setSelectedPath("");
+    setPreview(null);
     void reload();
   }, [reload]);
 
   async function uploadFiles(files: File[]) {
-    if (busy || files.length === 0) return;
+    if (busy || loading || files.length === 0) return;
 
     const images = files.filter((file) => file.type.startsWith("image/"));
     if (!images.length) {
@@ -150,7 +162,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
     const selected = images.slice(0, Math.max(0, availableSlots));
 
     if (!selected.length) {
-      setError(ar ? "وصلت للحد الأقصى: 20 صورة للعقد." : "Maximum reached: 20 images per contract.");
+      setError(ar ? "وصلت للحد الأقصى: 5 صور للعقد." : "Maximum reached: 5 images per contract.");
       return;
     }
 
@@ -168,26 +180,26 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
         await addContractAttachment(contractId, selected[index]);
       }
 
-      await reload();
       playUiSound("created");
 
       if (images.length > availableSlots) {
         setError(
           ar
-            ? `تم رفع ${selected.length} صورة فقط لأن الحد الأقصى 20 صورة للعقد.`
-            : `Uploaded ${selected.length} image(s) because the maximum is 20 per contract.`,
+            ? `تم رفع ${selected.length} صورة فقط لأن الحد الأقصى 5 صور للعقد.`
+            : `Uploaded ${selected.length} image(s) because the maximum is 5 per contract.`,
         );
       }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "";
       if (/Maximum attachments/i.test(message)) {
-        setError(ar ? "وصلت للحد الأقصى: 20 صورة للعقد." : "Maximum reached: 20 images per contract.");
+        setError(ar ? "وصلت للحد الأقصى: 5 صور للعقد." : "Maximum reached: 5 images per contract.");
       } else if (/too large/i.test(message)) {
         setError(ar ? "الصورة كبيرة جدًا حتى بعد التحسين. جرّب صورة أخرى." : "The image is still too large after optimization.");
       } else {
         setError(ar ? "تعذر رفع الصورة. جرّب مرة أخرى." : "Could not upload the image. Try again.");
       }
     } finally {
+      await reload();
       setBusy(false);
       setProgress("");
       if (inputRef.current) inputRef.current.value = "";
@@ -260,7 +272,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
         <div className="attachment-heading">
           <div>
             <p className="eyebrow">{ar ? "مرفقات العقد" : "Contract attachments"}</p>
-            <h3>{ar ? "صور العقد" : "Contract images"}</h3>
+            <h3>{ar ? "مستندات العقد" : "Contract document viewer"}</h3>
             <p>
               {ar
                 ? "احتفظ بصور العقد داخل نفس السجل. الصور خاصة ولا تُفتح إلا لمستخدم مسجل ومفعّل."
@@ -313,7 +325,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
           <button
             type="button"
             className="button button-secondary attachment-upload-button"
-            disabled={busy || attachments.length >= MAX_ATTACHMENTS}
+            disabled={busy || loading || attachments.length >= MAX_ATTACHMENTS}
             onClick={() => inputRef.current?.click()}
           >
             <Plus size={17} />
@@ -335,14 +347,24 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
             <span>{ar ? "أول صورة تضيفها ستظهر هنا." : "The first image you add will appear here."}</span>
           </div>
         ) : (
-          <div className="attachment-grid">
+          <div className="contract-document-layout">
+            <div className="contract-document-preview">
+              <AttachmentThumbnail
+                key={selectedAttachment.pathname}
+                contractId={contractId}
+                attachment={selectedAttachment}
+                onOpen={(item, url) => setPreview({ attachment: item, url })}
+              />
+              <span>{ar ? "اضغط لفتح المستند والتكبير" : "Open document to zoom and inspect"}</span>
+            </div>
+          <div className="attachment-grid document-thumbnail-strip">
             {attachments.map((attachment, index) => (
-              <article className="attachment-item" key={attachment.pathname}>
+              <article className={selectedAttachment.pathname === attachment.pathname ? "attachment-item document-page-selected" : "attachment-item"} key={attachment.pathname}>
                 <div className="attachment-thumb-wrap">
                   <AttachmentThumbnail
                     contractId={contractId}
                     attachment={attachment}
-                    onOpen={(item, url) => setPreview({ attachment: item, url })}
+                    onOpen={(item) => setSelectedPath(item.pathname)}
                   />
                   <span className="attachment-page-number">{index + 1}</span>
                 </div>
@@ -365,50 +387,14 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
               </article>
             ))}
           </div>
+          </div>
         )}
       </section>
 
-      {preview ? (
-        <div className="attachment-modal" role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className="attachment-modal-backdrop"
-            onClick={() => setPreview(null)}
-            aria-label={ar ? "إغلاق المعاينة" : "Close preview"}
-          />
-
-          <div className="attachment-modal-panel">
-            <header>
-              <div>
-                <strong>{preview.attachment.name}</strong>
-                <span>{uploadedAtText(preview.attachment)} · {formatBytes(preview.attachment.size)}</span>
-              </div>
-              <div className="attachment-modal-actions">
-                <button
-                  type="button"
-                  className="icon-button"
-                  onClick={() => void downloadAttachment(preview.attachment)}
-                  title={ar ? "تنزيل الصورة" : "Download image"}
-                >
-                  <Download size={18} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  onClick={() => setPreview(null)}
-                  aria-label={ar ? "إغلاق" : "Close"}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </header>
-
-            <div className="attachment-modal-image">
-              <img src={preview.url} alt={preview.attachment.name} />
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {preview ? <ContractImageViewer
+        src={preview.url} name={preview.attachment.name} ar={ar}
+        onClose={closePreview} onDownload={() => void downloadAttachment(preview.attachment)}
+      /> : null}
     </>
   );
 }
