@@ -8,6 +8,8 @@ export const runtime = "nodejs";
 const MAX_ATTACHMENTS = 5;
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const MAX_REQUEST_BYTES = MAX_FILE_BYTES + 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 3000;
+const MAX_IMAGE_PIXELS = 9_000_000;
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -37,28 +39,143 @@ function inferContentType(pathname: string) {
   return "image/jpeg";
 }
 
-async function hasValidImageSignature(file: File) {
-  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+function uint24LE(bytes: Uint8Array, offset: number) {
+  return bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
+}
 
-  if (file.type === "image/jpeg") {
-    return bytes.length >= 3
-      && bytes[0] === 0xff
-      && bytes[1] === 0xd8
-      && bytes[2] === 0xff;
+function jpegDimensions(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 2;
+  const sofMarkers = new Set([
+    0xc0, 0xc1, 0xc2, 0xc3,
+    0xc5, 0xc6, 0xc7,
+    0xc9, 0xca, 0xcb,
+    0xcd, 0xce, 0xcf,
+  ]);
+
+  while (offset + 8 < bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+
+    while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
+    if (offset >= bytes.length) break;
+
+    const marker = bytes[offset];
+    offset += 1;
+
+    if (marker === 0xd8 || marker === 0xd9) continue;
+    if (marker === 0xda) break;
+    if (offset + 2 > bytes.length) break;
+
+    const segmentLength = view.getUint16(offset, false);
+    if (segmentLength < 2 || offset + segmentLength > bytes.length) break;
+
+    if (sofMarkers.has(marker) && segmentLength >= 7) {
+      return {
+        height: view.getUint16(offset + 3, false),
+        width: view.getUint16(offset + 5, false),
+      };
+    }
+
+    offset += segmentLength;
   }
 
-  if (file.type === "image/png") {
-    const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-    return bytes.length >= png.length && png.every((value, index) => bytes[index] === value);
+  return null;
+}
+
+function webpDimensions(bytes: Uint8Array) {
+  if (bytes.length < 30) return null;
+  const chunk = String.fromCharCode(...bytes.slice(12, 16));
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  if (chunk === "VP8X") {
+    return {
+      width: uint24LE(bytes, 24) + 1,
+      height: uint24LE(bytes, 27) + 1,
+    };
   }
 
-  if (file.type === "image/webp") {
-    return bytes.length >= 12
-      && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF"
-      && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
+  if (chunk === "VP8L" && bytes.length >= 25 && bytes[20] === 0x2f) {
+    return {
+      width: 1 + (bytes[21] | ((bytes[22] & 0x3f) << 8)),
+      height: 1 + (
+        ((bytes[22] & 0xc0) >> 6)
+        | (bytes[23] << 2)
+        | ((bytes[24] & 0x0f) << 10)
+      ),
+    };
   }
 
-  return false;
+  if (
+    chunk === "VP8 "
+    && bytes.length >= 30
+    && bytes[23] === 0x9d
+    && bytes[24] === 0x01
+    && bytes[25] === 0x2a
+  ) {
+    return {
+      width: view.getUint16(26, true) & 0x3fff,
+      height: view.getUint16(28, true) & 0x3fff,
+    };
+  }
+
+  return null;
+}
+
+async function validateImageContent(file: File) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let detectedType = "";
+  let dimensions: { width: number; height: number } | null = null;
+
+  const isJpeg =
+    bytes.length >= 3
+    && bytes[0] === 0xff
+    && bytes[1] === 0xd8
+    && bytes[2] === 0xff;
+
+  const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  const isPng =
+    bytes.length >= 24
+    && pngSignature.every((value, index) => bytes[index] === value);
+
+  const isWebp =
+    bytes.length >= 16
+    && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF"
+    && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
+
+  if (isJpeg) {
+    detectedType = "image/jpeg";
+    dimensions = jpegDimensions(bytes);
+  } else if (isPng) {
+    detectedType = "image/png";
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    dimensions = {
+      width: view.getUint32(16, false),
+      height: view.getUint32(20, false),
+    };
+  } else if (isWebp) {
+    detectedType = "image/webp";
+    dimensions = webpDimensions(bytes);
+  }
+
+  if (!detectedType || detectedType !== file.type || !dimensions) {
+    return { ok: false as const, reason: "Invalid image content." };
+  }
+
+  const { width, height } = dimensions;
+  if (
+    width <= 0
+    || height <= 0
+    || width > MAX_IMAGE_DIMENSION
+    || height > MAX_IMAGE_DIMENSION
+    || width * height > MAX_IMAGE_PIXELS
+  ) {
+    return { ok: false as const, reason: "Invalid image dimensions." };
+  }
+
+  return { ok: true as const };
 }
 
 function errorResponse(cause: unknown) {
@@ -171,8 +288,9 @@ export async function POST(
       return NextResponse.json({ error: "File is too large." }, { status: 413 });
     }
 
-    if (!(await hasValidImageSignature(file))) {
-      return NextResponse.json({ error: "Invalid image content." }, { status: 415 });
+    const validation = await validateImageContent(file);
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.reason }, { status: 415 });
     }
 
     release = await acquireAttachmentLock(id);
