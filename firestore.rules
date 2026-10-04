@@ -13,7 +13,11 @@ service cloud.firestore {
     function activeMember() {
       return signedIn()
         && exists(memberPath())
-        && get(memberPath()).data.active == true;
+        && get(memberPath()).data.active == true
+        && (
+          get(memberPath()).data.role == "admin"
+          || get(memberPath()).data.role == "editor"
+        );
     }
 
     function admin() {
@@ -21,7 +25,8 @@ service cloud.firestore {
     }
 
     function validStages(data) {
-      return data.stages.keys().hasOnly([
+      return data.stages is map
+        && data.stages.keys().hasOnly([
           "stampedByUs",
           "stampedByClient",
           "downPayment",
@@ -40,7 +45,8 @@ service cloud.firestore {
     }
 
     function validDates(data) {
-      return data.stageDates.keys().hasOnly([
+      return data.stageDates is map
+        && data.stageDates.keys().hasOnly([
           "stampedByUs",
           "stampedByClient",
           "downPayment",
@@ -86,8 +92,72 @@ service cloud.firestore {
         && data.product.size() <= 120
         && data.createdBy is string
         && data.createdByName is string
+        && data.createdByName.size() >= 1
+        && data.createdByName.size() <= 100
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
         && validStages(data)
         && validDates(data);
+    }
+
+    function pristineWorkflow(data) {
+      return data.stages.stampedByUs == false
+        && data.stages.stampedByClient == false
+        && data.stages.downPayment == false
+        && data.stages.supply == false
+        && data.stages.settlement == false
+        && data.stageDates.stampedByUs == null
+        && data.stageDates.stampedByClient == null
+        && data.stageDates.downPayment == null
+        && data.stageDates.supply == null
+        && data.stageDates.settlement == null;
+    }
+
+    function validStageChange(oldStage, newStage, oldDate, newDate) {
+      return (
+          newStage == oldStage
+          && newDate == oldDate
+        )
+        || (
+          newStage != oldStage
+          && (
+            (newStage == true && newDate == request.time)
+            || (newStage == false && newDate == null)
+          )
+        );
+    }
+
+    function validStageTransitions(oldData, newData) {
+      return validStageChange(
+          oldData.stages.stampedByUs,
+          newData.stages.stampedByUs,
+          oldData.stageDates.stampedByUs,
+          newData.stageDates.stampedByUs
+        )
+        && validStageChange(
+          oldData.stages.stampedByClient,
+          newData.stages.stampedByClient,
+          oldData.stageDates.stampedByClient,
+          newData.stageDates.stampedByClient
+        )
+        && validStageChange(
+          oldData.stages.downPayment,
+          newData.stages.downPayment,
+          oldData.stageDates.downPayment,
+          newData.stageDates.downPayment
+        )
+        && validStageChange(
+          oldData.stages.supply,
+          newData.stages.supply,
+          oldData.stageDates.supply,
+          newData.stageDates.supply
+        )
+        && validStageChange(
+          oldData.stages.settlement,
+          newData.stages.settlement,
+          oldData.stageDates.settlement,
+          newData.stageDates.settlement
+        );
     }
 
     match /users/{userId} {
@@ -100,15 +170,19 @@ service cloud.firestore {
 
       allow create: if activeMember()
         && validContract(request.resource.data)
+        && pristineWorkflow(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName == get(memberPath()).data.displayName
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
 
       allow update: if activeMember()
         && validContract(request.resource.data)
         && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdByName == resource.data.createdByName
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && validStageTransitions(resource.data, request.resource.data);
 
       allow delete: if admin();
     }
