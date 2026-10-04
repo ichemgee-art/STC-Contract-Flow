@@ -3,6 +3,7 @@
 import { ArrowLeft, Save } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
+import { useLanguage } from "@/components/LanguageProvider";
 import type { ContractInput } from "@/types/contract";
 
 const emptyValue: ContractInput = {
@@ -24,13 +25,14 @@ interface ContractFormProps {
 
 export function ContractForm({
   initialValue = emptyValue,
-  submitLabel = "Save Contract",
+  submitLabel,
   cancelHref = "/contracts",
   onCancel,
   busy = false,
   error,
   onSubmit,
 }: ContractFormProps) {
+  const { t, dir } = useLanguage();
   const [value, setValue] = useState<ContractInput>(initialValue);
 
   useEffect(() => setValue(initialValue), [initialValue]);
@@ -51,11 +53,11 @@ export function ContractForm({
 
   const cancelControl = onCancel ? (
     <button type="button" className="button button-secondary" onClick={onCancel}>
-      <ArrowLeft size={16} /> Cancel
+      <ArrowLeft size={16} className={dir === "rtl" ? "rtl-flip" : ""} /> {t("cancel")}
     </button>
   ) : (
     <Link href={cancelHref} className="button button-secondary">
-      <ArrowLeft size={16} /> Cancel
+      <ArrowLeft size={16} className={dir === "rtl" ? "rtl-flip" : ""} /> {t("cancel")}
     </Link>
   );
 
@@ -63,19 +65,19 @@ export function ContractForm({
     <form className="contract-form card" onSubmit={submit}>
       <div className="form-section-heading">
         <div>
-          <p className="eyebrow">Contract information</p>
-          <h3>Basic details</h3>
-          <p>Keep the entry short and searchable. Contract type and product are free text.</p>
+          <p className="eyebrow">{t("contractInformation")}</p>
+          <h3>{t("basicDetails")}</h3>
+          <p>{t("basicDetailsHelp")}</p>
         </div>
       </div>
 
       <div className="form-grid">
         <label className="field">
-          <span>Sales representative</span>
+          <span>{t("salesRepresentative")}</span>
           <input
             value={value.salesRepresentative}
             onChange={(event) => update("salesRepresentative", event.target.value)}
-            placeholder="e.g. Ahmed Mohamed"
+            placeholder={t("salesRepresentativePlaceholder")}
             minLength={2}
             maxLength={100}
             required
@@ -83,11 +85,11 @@ export function ContractForm({
         </label>
 
         <label className="field">
-          <span>Company / Client</span>
+          <span>{t("companyClient")}</span>
           <input
             value={value.companyName}
             onChange={(event) => update("companyName", event.target.value)}
-            placeholder="e.g. ABC Contracting"
+            placeholder={t("companyPlaceholder")}
             minLength={2}
             maxLength={160}
             required
@@ -95,29 +97,29 @@ export function ContractForm({
         </label>
 
         <label className="field">
-          <span>Contract type</span>
+          <span>{t("contractType")}</span>
           <input
             value={value.contractType}
             onChange={(event) => update("contractType", event.target.value)}
-            placeholder="e.g. Supply & Installation"
+            placeholder={t("contractTypePlaceholder")}
             minLength={2}
             maxLength={120}
             required
           />
-          <small>Manual entry — not limited to a predefined list.</small>
+          <small>{t("contractTypeHelp")}</small>
         </label>
 
         <label className="field">
-          <span>Product / Item</span>
+          <span>{t("productItem")}</span>
           <input
             value={value.product}
             onChange={(event) => update("product", event.target.value)}
-            placeholder="e.g. HPL"
+            placeholder={t("productPlaceholder")}
             minLength={1}
             maxLength={120}
             required
           />
-          <small>Examples: HPL, Corian, Raised Floor, Expansion Joints.</small>
+          <small>{t("productHelp")}</small>
         </label>
       </div>
 
@@ -126,7 +128,7 @@ export function ContractForm({
       <div className="form-actions">
         {cancelControl}
         <button className="button button-primary" type="submit" disabled={busy}>
-          <Save size={16} /> {busy ? "Saving…" : submitLabel}
+          <Save size={16} /> {busy ? t("saving") : submitLabel ?? t("saveContract")}
         </button>
       </div>
     </form>
