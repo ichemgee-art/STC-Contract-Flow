@@ -1,7 +1,6 @@
 import {
   addDoc,
-  collection,
-  deleteDoc,
+  collection
   doc,
   getDoc,
   getDocs,
@@ -13,7 +12,8 @@ import {
   type DocumentData,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { clearAttachmentCaches } from "@/lib/attachmentCache";
 import {
   getContractStatus,
   STAGE_KEYS,
@@ -126,7 +126,25 @@ export async function updateContractStage(contract: ContractRecord, stage: Stage
 }
 
 export async function deleteContract(id: string) {
-  return deleteDoc(doc(db, "contracts", id));
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not signed in.");
+
+  const token = await user.getIdToken();
+  const response = await fetch(`/api/contracts/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not delete contract.");
+  }
+
+  // Deleted contract images must not remain readable from the local private
+  // image cache after the record itself is gone.
+  await clearAttachmentCaches();
 }
 
 
