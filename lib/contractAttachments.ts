@@ -19,6 +19,9 @@ const TARGET_COMPRESSED_BYTES = 850_000;
 const MAX_COMPRESSED_BYTES = 1_200_000;
 const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
 const UPLOAD_RETRY_DELAYS = [600, 1200, 2200] as const;
+const LIST_TIMEOUT_MS = 30_000;
+const UPLOAD_TIMEOUT_MS = 75_000;
+const DELETE_TIMEOUT_MS = 30_000;
 
 async function authHeaders() {
   const user = auth.currentUser;
@@ -159,6 +162,7 @@ export async function listContractAttachments(contractId: string) {
     {
       headers,
       cache: "no-store",
+      signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
     },
   );
 
@@ -207,6 +211,7 @@ export async function addContractAttachment(contractId: string, source: File) {
         method: "POST",
         headers,
         body,
+        signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
       },
     );
 
@@ -233,21 +238,41 @@ export async function addContractAttachment(contractId: string, source: File) {
 
 export async function deleteContractAttachment(contractId: string, pathname: string) {
   const uid = auth.currentUser?.uid;
-  const headers = await authHeaders();
-  const response = await fetch(
-    `/api/contracts/${encodeURIComponent(contractId)}/attachments`,
-    {
-      method: "DELETE",
-      headers: {
-        ...headers,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ pathname }),
-    },
-  );
 
-  if (!response.ok) throw new Error("Could not delete attachment.");
-  if (uid) await invalidateAttachment(uid, attachmentUrl(contractId, pathname));
+  for (let attempt = 0; attempt <= UPLOAD_RETRY_DELAYS.length; attempt += 1) {
+    const headers = await authHeaders();
+    const response = await fetch(
+      `/api/contracts/${encodeURIComponent(contractId)}/attachments`,
+      {
+        method: "DELETE",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ pathname }),
+        signal: AbortSignal.timeout(DELETE_TIMEOUT_MS),
+      },
+    );
+
+    if (response.ok) {
+      if (uid) await invalidateAttachment(uid, attachmentUrl(contractId, pathname));
+      return;
+    }
+
+    const message = await responseError(response);
+    const busy =
+      response.status === 409
+      && /upload in progress/i.test(message);
+
+    if (busy && attempt < UPLOAD_RETRY_DELAYS.length) {
+      await delay(UPLOAD_RETRY_DELAYS[attempt]);
+      continue;
+    }
+
+    throw new Error(message || "Could not delete attachment.");
+  }
+
+  throw new Error("Could not delete attachment.");
 }
 
 function attachmentUrl(contractId: string, pathname: string) {
