@@ -1,6 +1,6 @@
 import {
   addDoc,
-  collection
+  collection,
   doc,
   getDoc,
   getDocs,
