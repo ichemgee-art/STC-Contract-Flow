@@ -129,11 +129,11 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   const ar = language === "ar";
   const selectedAttachment = attachments.find(item => item.pathname === selectedPath) || attachments[0];
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (preserveError = false) => {
     try {
       const next = await listContractAttachments(contractId);
       setAttachments(next);
-      setError("");
+      if (!preserveError) setError("");
     } catch {
       setError(ar ? "تعذر تحميل صور العقد." : "Could not load contract images.");
     } finally {
