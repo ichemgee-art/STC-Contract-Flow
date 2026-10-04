@@ -129,22 +129,40 @@ export async function deleteContract(id: string) {
   const user = auth.currentUser;
   if (!user) throw new Error("Not signed in.");
 
-  const token = await user.getIdToken();
-  const response = await fetch(`/api/contracts/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: "no-store",
-  });
+  const retryDelays = [600, 1200, 2200];
 
-  if (!response.ok) {
+  for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
+    const token = await user.getIdToken();
+    const response = await fetch(`/api/contracts/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (response.ok) {
+      // Deleted contract images must not remain readable from the local private
+      // image cache after the record itself is gone.
+      await clearAttachmentCaches();
+      return;
+    }
+
+    const message = await response.text().catch(() => "");
+    const busy =
+      response.status === 409
+      && /upload in progress/i.test(message);
+
+    if (busy && attempt < retryDelays.length) {
+      await new Promise((resolve) => window.setTimeout(resolve, retryDelays[attempt]));
+      continue;
+    }
+
     throw new Error("Could not delete contract.");
   }
 
-  // Deleted contract images must not remain readable from the local private
-  // image cache after the record itself is gone.
-  await clearAttachmentCaches();
+  throw new Error("Could not delete contract.");
 }
 
 
