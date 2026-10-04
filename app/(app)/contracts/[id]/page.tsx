@@ -11,6 +11,7 @@ import {
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { ContractAttachments } from "@/components/ContractAttachments";
 import { ContractForm } from "@/components/ContractForm";
 import { ExportButtons } from "@/components/ExportButtons";
 import { useLanguage } from "@/components/LanguageProvider";
@@ -283,6 +284,8 @@ export default function ContractDetailsPage() {
           </div>
         </article>
       </section>
+
+      <ContractAttachments contractId={contract.id} />
 
       <section className="detail-grid">
         <article className="workflow-card card">
