@@ -179,9 +179,9 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
     primeUiAudio();
     setBusy(true);
     setError("");
+    setSuccess("");
 
     let uploaded = 0;
-    let lastUploaded: ContractAttachment | null = null;
     const failures: string[] = [];
 
     try {
@@ -195,8 +195,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
         );
 
         try {
-          const attachment = await addContractAttachment(contractId, file);
-          lastUploaded = attachment;
+          await addContractAttachment(contractId, file);
           uploaded += 1;
         } catch (cause) {
           const message = cause instanceof Error ? cause.message : "";
@@ -220,7 +219,15 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
 
       if (uploaded > 0) {
         playUiSound("created");
-        if (lastUploaded) setShareTarget(lastUploaded);
+        setSuccess(
+          ar
+            ? uploaded === 1
+              ? "تم رفع صورة العقد بنجاح."
+              : `تم رفع ${uploaded} صور للعقد بنجاح.`
+            : uploaded === 1
+              ? "Contract image uploaded successfully."
+              : `${uploaded} contract images uploaded successfully.`,
+        );
       }
 
       const skippedForLimit = Math.max(0, images.length - selected.length);
