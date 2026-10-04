@@ -293,3 +293,35 @@ export async function fetchContractAttachment(contractId: string, pathname: stri
     () => auth.currentUser?.uid === uid,
   );
 }
+
+
+export interface ContractAttachmentShare {
+  shareUrl: string;
+  downloadUrl: string;
+  expiresAt: string;
+  expiresInSeconds: number;
+}
+
+export async function createAttachmentShare(contractId: string, pathname: string) {
+  const headers = await authHeaders();
+  const response = await fetch(
+    `/api/contracts/${encodeURIComponent(contractId)}/attachments/share`,
+    {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ pathname }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
+    },
+  );
+
+  if (!response.ok) {
+    const message = await responseError(response);
+    throw new Error(message || "Could not create share link.");
+  }
+
+  return (await response.json()) as ContractAttachmentShare;
+}
