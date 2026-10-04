@@ -10,7 +10,7 @@ import {
   serverTimestamp,
   updateDoc,
   type DocumentData,
-  type QueryDocumentSnapshot,
+  type DocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -23,8 +23,10 @@ import {
 
 const contractsRef = collection(db, "contracts");
 
-function fromSnapshot(snapshot: QueryDocumentSnapshot<DocumentData>): ContractRecord {
+function fromSnapshot(snapshot: DocumentSnapshot<DocumentData>): ContractRecord {
   const data = snapshot.data();
+  if (!data) throw new Error("Contract document has no data.");
+
   return {
     id: snapshot.id,
     salesRepresentative: data.salesRepresentative ?? "",
@@ -52,6 +54,18 @@ export function subscribeContracts(
   );
 }
 
+export function subscribeContract(
+  id: string,
+  onData: (contract: ContractRecord | null) => void,
+  onError?: (error: Error) => void,
+) {
+  return onSnapshot(
+    doc(db, "contracts", id),
+    (snapshot) => onData(snapshot.exists() ? fromSnapshot(snapshot) : null),
+    (error) => onError?.(error),
+  );
+}
+
 export async function createContract(
   input: ContractInput,
   user: { uid: string; displayName: string },
@@ -73,7 +87,7 @@ export async function createContract(
 export async function getContract(id: string) {
   const snapshot = await getDoc(doc(db, "contracts", id));
   if (!snapshot.exists()) return null;
-  return fromSnapshot(snapshot as QueryDocumentSnapshot<DocumentData>);
+  return fromSnapshot(snapshot);
 }
 
 export async function updateContractBasics(id: string, input: ContractInput) {
