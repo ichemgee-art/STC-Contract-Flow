@@ -113,51 +113,117 @@ service cloud.firestore {
         && data.stageDates.settlement == null;
     }
 
-    function validStageChange(oldStage, newStage, oldDate, newDate) {
-      return (
-          newStage == oldStage
-          && newDate == oldDate
-        )
-        || (
-          newStage != oldStage
-          && (
-            (newStage == true && newDate == request.time)
-            || (newStage == false && newDate == null)
-          )
-        );
+    function stageUnchanged(oldStage, newStage, oldDate, newDate) {
+      return newStage == oldStage && newDate == oldDate;
+    }
+
+    function stageCompleted(oldStage, newStage, newDate) {
+      return oldStage == false
+        && newStage == true
+        && newDate == request.time;
+    }
+
+    function stageReopened(oldStage, newStage, newDate) {
+      return oldStage == true
+        && newStage == false
+        && newDate == null;
     }
 
     function validStageTransitions(oldData, newData) {
-      return validStageChange(
-          oldData.stages.stampedByUs,
-          newData.stages.stampedByUs,
-          oldData.stageDates.stampedByUs,
-          newData.stageDates.stampedByUs
-        )
-        && validStageChange(
-          oldData.stages.stampedByClient,
-          newData.stages.stampedByClient,
-          oldData.stageDates.stampedByClient,
-          newData.stageDates.stampedByClient
-        )
-        && validStageChange(
-          oldData.stages.downPayment,
-          newData.stages.downPayment,
-          oldData.stageDates.downPayment,
-          newData.stageDates.downPayment
-        )
-        && validStageChange(
-          oldData.stages.supply,
-          newData.stages.supply,
-          oldData.stageDates.supply,
-          newData.stageDates.supply
-        )
-        && validStageChange(
-          oldData.stages.settlement,
-          newData.stages.settlement,
-          oldData.stageDates.settlement,
-          newData.stageDates.settlement
-        );
+      // Basic-detail edits may leave the complete workflow untouched.
+      let unchanged =
+        stageUnchanged(oldData.stages.stampedByUs, newData.stages.stampedByUs, oldData.stageDates.stampedByUs, newData.stageDates.stampedByUs)
+        && stageUnchanged(oldData.stages.stampedByClient, newData.stages.stampedByClient, oldData.stageDates.stampedByClient, newData.stageDates.stampedByClient)
+        && stageUnchanged(oldData.stages.downPayment, newData.stages.downPayment, oldData.stageDates.downPayment, newData.stageDates.downPayment)
+        && stageUnchanged(oldData.stages.supply, newData.stages.supply, oldData.stageDates.supply, newData.stageDates.supply)
+        && stageUnchanged(oldData.stages.settlement, newData.stages.settlement, oldData.stageDates.settlement, newData.stageDates.settlement);
+
+      // A forward action may complete exactly one stage. All other stages and
+      // their timestamps must stay untouched. validContract() separately
+      // guarantees that every prerequisite stage is already complete.
+      let completeStampedByUs =
+        stageCompleted(oldData.stages.stampedByUs, newData.stages.stampedByUs, newData.stageDates.stampedByUs)
+        && stageUnchanged(oldData.stages.stampedByClient, newData.stages.stampedByClient, oldData.stageDates.stampedByClient, newData.stageDates.stampedByClient)
+        && stageUnchanged(oldData.stages.downPayment, newData.stages.downPayment, oldData.stageDates.downPayment, newData.stageDates.downPayment)
+        && stageUnchanged(oldData.stages.supply, newData.stages.supply, oldData.stageDates.supply, newData.stageDates.supply)
+        && stageUnchanged(oldData.stages.settlement, newData.stages.settlement, oldData.stageDates.settlement, newData.stageDates.settlement);
+
+      let completeStampedByClient =
+        stageUnchanged(oldData.stages.stampedByUs, newData.stages.stampedByUs, oldData.stageDates.stampedByUs, newData.stageDates.stampedByUs)
+        && stageCompleted(oldData.stages.stampedByClient, newData.stages.stampedByClient, newData.stageDates.stampedByClient)
+        && stageUnchanged(oldData.stages.downPayment, newData.stages.downPayment, oldData.stageDates.downPayment, newData.stageDates.downPayment)
+        && stageUnchanged(oldData.stages.supply, newData.stages.supply, oldData.stageDates.supply, newData.stageDates.supply)
+        && stageUnchanged(oldData.stages.settlement, newData.stages.settlement, oldData.stageDates.settlement, newData.stageDates.settlement);
+
+      let completeDownPayment =
+        stageUnchanged(oldData.stages.stampedByUs, newData.stages.stampedByUs, oldData.stageDates.stampedByUs, newData.stageDates.stampedByUs)
+        && stageUnchanged(oldData.stages.stampedByClient, newData.stages.stampedByClient, oldData.stageDates.stampedByClient, newData.stageDates.stampedByClient)
+        && stageCompleted(oldData.stages.downPayment, newData.stages.downPayment, newData.stageDates.downPayment)
+        && stageUnchanged(oldData.stages.supply, newData.stages.supply, oldData.stageDates.supply, newData.stageDates.supply)
+        && stageUnchanged(oldData.stages.settlement, newData.stages.settlement, oldData.stageDates.settlement, newData.stageDates.settlement);
+
+      let completeSupply =
+        stageUnchanged(oldData.stages.stampedByUs, newData.stages.stampedByUs, oldData.stageDates.stampedByUs, newData.stageDates.stampedByUs)
+        && stageUnchanged(oldData.stages.stampedByClient, newData.stages.stampedByClient, oldData.stageDates.stampedByClient, newData.stageDates.stampedByClient)
+        && stageUnchanged(oldData.stages.downPayment, newData.stages.downPayment, oldData.stageDates.downPayment, newData.stageDates.downPayment)
+        && stageCompleted(oldData.stages.supply, newData.stages.supply, newData.stageDates.supply)
+        && stageUnchanged(oldData.stages.settlement, newData.stages.settlement, oldData.stageDates.settlement, newData.stageDates.settlement);
+
+      let completeStockingPayment =
+        stageUnchanged(oldData.stages.stampedByUs, newData.stages.stampedByUs, oldData.stageDates.stampedByUs, newData.stageDates.stampedByUs)
+        && stageUnchanged(oldData.stages.stampedByClient, newData.stages.stampedByClient, oldData.stageDates.stampedByClient, newData.stageDates.stampedByClient)
+        && stageUnchanged(oldData.stages.downPayment, newData.stages.downPayment, oldData.stageDates.downPayment, newData.stageDates.downPayment)
+        && stageUnchanged(oldData.stages.supply, newData.stages.supply, oldData.stageDates.supply, newData.stageDates.supply)
+        && stageCompleted(oldData.stages.settlement, newData.stages.settlement, newData.stageDates.settlement);
+
+      // Reopening one stage is allowed to clear that stage and every stage
+      // after it, but it can never alter an earlier completed stage.
+      let reopenStampedByUs =
+        stageReopened(oldData.stages.stampedByUs, newData.stages.stampedByUs, newData.stageDates.stampedByUs)
+        && newData.stages.stampedByClient == false && newData.stageDates.stampedByClient == null
+        && newData.stages.downPayment == false && newData.stageDates.downPayment == null
+        && newData.stages.supply == false && newData.stageDates.supply == null
+        && newData.stages.settlement == false && newData.stageDates.settlement == null;
+
+      let reopenStampedByClient =
+        stageUnchanged(oldData.stages.stampedByUs, newData.stages.stampedByUs, oldData.stageDates.stampedByUs, newData.stageDates.stampedByUs)
+        && stageReopened(oldData.stages.stampedByClient, newData.stages.stampedByClient, newData.stageDates.stampedByClient)
+        && newData.stages.downPayment == false && newData.stageDates.downPayment == null
+        && newData.stages.supply == false && newData.stageDates.supply == null
+        && newData.stages.settlement == false && newData.stageDates.settlement == null;
+
+      let reopenDownPayment =
+        stageUnchanged(oldData.stages.stampedByUs, newData.stages.stampedByUs, oldData.stageDates.stampedByUs, newData.stageDates.stampedByUs)
+        && stageUnchanged(oldData.stages.stampedByClient, newData.stages.stampedByClient, oldData.stageDates.stampedByClient, newData.stageDates.stampedByClient)
+        && stageReopened(oldData.stages.downPayment, newData.stages.downPayment, newData.stageDates.downPayment)
+        && newData.stages.supply == false && newData.stageDates.supply == null
+        && newData.stages.settlement == false && newData.stageDates.settlement == null;
+
+      let reopenSupply =
+        stageUnchanged(oldData.stages.stampedByUs, newData.stages.stampedByUs, oldData.stageDates.stampedByUs, newData.stageDates.stampedByUs)
+        && stageUnchanged(oldData.stages.stampedByClient, newData.stages.stampedByClient, oldData.stageDates.stampedByClient, newData.stageDates.stampedByClient)
+        && stageUnchanged(oldData.stages.downPayment, newData.stages.downPayment, oldData.stageDates.downPayment, newData.stageDates.downPayment)
+        && stageReopened(oldData.stages.supply, newData.stages.supply, newData.stageDates.supply)
+        && newData.stages.settlement == false && newData.stageDates.settlement == null;
+
+      let reopenStockingPayment =
+        stageUnchanged(oldData.stages.stampedByUs, newData.stages.stampedByUs, oldData.stageDates.stampedByUs, newData.stageDates.stampedByUs)
+        && stageUnchanged(oldData.stages.stampedByClient, newData.stages.stampedByClient, oldData.stageDates.stampedByClient, newData.stageDates.stampedByClient)
+        && stageUnchanged(oldData.stages.downPayment, newData.stages.downPayment, oldData.stageDates.downPayment, newData.stageDates.downPayment)
+        && stageUnchanged(oldData.stages.supply, newData.stages.supply, oldData.stageDates.supply, newData.stageDates.supply)
+        && stageReopened(oldData.stages.settlement, newData.stages.settlement, newData.stageDates.settlement);
+
+      return unchanged
+        || completeStampedByUs
+        || completeStampedByClient
+        || completeDownPayment
+        || completeSupply
+        || completeStockingPayment
+        || reopenStampedByUs
+        || reopenStampedByClient
+        || reopenDownPayment
+        || reopenSupply
+        || reopenStockingPayment;
     }
 
     match /users/{userId} {
