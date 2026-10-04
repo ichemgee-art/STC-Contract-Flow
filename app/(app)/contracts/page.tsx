@@ -24,7 +24,7 @@ const statuses: ContractStatus[] = [
   "Waiting for Client Stamp",
   "Waiting for Down Payment",
   "Waiting for Supply",
-  "Waiting for Settlement",
+  "Waiting for Stocking Payment",
   "Completed",
 ];
 

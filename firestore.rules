@@ -113,50 +113,162 @@ service cloud.firestore {
         && data.stageDates.settlement == null;
     }
 
-    function validStageChange(oldStage, newStage, oldDate, newDate) {
-      return (
-          newStage == oldStage
-          && newDate == oldDate
-        )
-        || (
-          newStage != oldStage
-          && (
-            (newStage == true && newDate == request.time)
-            || (newStage == false && newDate == null)
-          )
-        );
+    function stageCompleted(oldStage, newStage, newDate) {
+      return oldStage == false
+        && newStage == true
+        && newDate == request.time;
+    }
+
+    function stageReopened(oldStage, newStage, newDate) {
+      return oldStage == true
+        && newStage == false
+        && newDate == null;
     }
 
     function validStageTransitions(oldData, newData) {
-      return validStageChange(
-          oldData.stages.stampedByUs,
-          newData.stages.stampedByUs,
-          oldData.stageDates.stampedByUs,
-          newData.stageDates.stampedByUs
+      let changedStages = newData.stages.diff(oldData.stages).affectedKeys();
+      let changedDates = newData.stageDates.diff(oldData.stageDates).affectedKeys();
+
+      // Editing basic contract fields is allowed when the workflow itself is
+      // untouched.
+      return (
+          changedStages.size() == 0
+          && changedDates.size() == 0
         )
-        && validStageChange(
-          oldData.stages.stampedByClient,
-          newData.stages.stampedByClient,
-          oldData.stageDates.stampedByClient,
-          newData.stageDates.stampedByClient
+        // Forward progress: exactly one stage and its own timestamp may change.
+        || (
+          changedStages.hasOnly(["stampedByUs"])
+          && changedDates.hasOnly(["stampedByUs"])
+          && stageCompleted(
+            oldData.stages.stampedByUs,
+            newData.stages.stampedByUs,
+            newData.stageDates.stampedByUs
+          )
         )
-        && validStageChange(
-          oldData.stages.downPayment,
-          newData.stages.downPayment,
-          oldData.stageDates.downPayment,
-          newData.stageDates.downPayment
+        || (
+          changedStages.hasOnly(["stampedByClient"])
+          && changedDates.hasOnly(["stampedByClient"])
+          && stageCompleted(
+            oldData.stages.stampedByClient,
+            newData.stages.stampedByClient,
+            newData.stageDates.stampedByClient
+          )
         )
-        && validStageChange(
-          oldData.stages.supply,
-          newData.stages.supply,
-          oldData.stageDates.supply,
-          newData.stageDates.supply
+        || (
+          changedStages.hasOnly(["downPayment"])
+          && changedDates.hasOnly(["downPayment"])
+          && stageCompleted(
+            oldData.stages.downPayment,
+            newData.stages.downPayment,
+            newData.stageDates.downPayment
+          )
         )
-        && validStageChange(
-          oldData.stages.settlement,
-          newData.stages.settlement,
-          oldData.stageDates.settlement,
-          newData.stageDates.settlement
+        || (
+          changedStages.hasOnly(["supply"])
+          && changedDates.hasOnly(["supply"])
+          && stageCompleted(
+            oldData.stages.supply,
+            newData.stages.supply,
+            newData.stageDates.supply
+          )
+        )
+        || (
+          changedStages.hasOnly(["settlement"])
+          && changedDates.hasOnly(["settlement"])
+          && stageCompleted(
+            oldData.stages.settlement,
+            newData.stages.settlement,
+            newData.stageDates.settlement
+          )
+        )
+        // Reopening a stage may clear only that stage and stages after it.
+        // Earlier progress and timestamps are immutable in the same request.
+        || (
+          changedStages.hasOnly([
+            "stampedByUs",
+            "stampedByClient",
+            "downPayment",
+            "supply",
+            "settlement"
+          ])
+          && changedDates.hasOnly([
+            "stampedByUs",
+            "stampedByClient",
+            "downPayment",
+            "supply",
+            "settlement"
+          ])
+          && stageReopened(
+            oldData.stages.stampedByUs,
+            newData.stages.stampedByUs,
+            newData.stageDates.stampedByUs
+          )
+          && newData.stages.stampedByClient == false
+          && newData.stageDates.stampedByClient == null
+          && newData.stages.downPayment == false
+          && newData.stageDates.downPayment == null
+          && newData.stages.supply == false
+          && newData.stageDates.supply == null
+          && newData.stages.settlement == false
+          && newData.stageDates.settlement == null
+        )
+        || (
+          changedStages.hasOnly([
+            "stampedByClient",
+            "downPayment",
+            "supply",
+            "settlement"
+          ])
+          && changedDates.hasOnly([
+            "stampedByClient",
+            "downPayment",
+            "supply",
+            "settlement"
+          ])
+          && stageReopened(
+            oldData.stages.stampedByClient,
+            newData.stages.stampedByClient,
+            newData.stageDates.stampedByClient
+          )
+          && newData.stages.downPayment == false
+          && newData.stageDates.downPayment == null
+          && newData.stages.supply == false
+          && newData.stageDates.supply == null
+          && newData.stages.settlement == false
+          && newData.stageDates.settlement == null
+        )
+        || (
+          changedStages.hasOnly(["downPayment", "supply", "settlement"])
+          && changedDates.hasOnly(["downPayment", "supply", "settlement"])
+          && stageReopened(
+            oldData.stages.downPayment,
+            newData.stages.downPayment,
+            newData.stageDates.downPayment
+          )
+          && newData.stages.supply == false
+          && newData.stageDates.supply == null
+          && newData.stages.settlement == false
+          && newData.stageDates.settlement == null
+        )
+        || (
+          changedStages.hasOnly(["supply", "settlement"])
+          && changedDates.hasOnly(["supply", "settlement"])
+          && stageReopened(
+            oldData.stages.supply,
+            newData.stages.supply,
+            newData.stageDates.supply
+          )
+          && newData.stages.settlement == false
+          && newData.stageDates.settlement == null
+        )
+        || (
+          changedStages.hasOnly(["settlement"])
+          && changedDates.hasOnly(["settlement"])
+          && stageReopened(
+            oldData.stages.settlement,
+            newData.stages.settlement,
+            newData.stageDates.settlement
+          )
         );
     }
 

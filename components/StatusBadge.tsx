@@ -6,7 +6,7 @@ const classByStatus = {
   "Waiting for Client Stamp": "status-blue",
   "Waiting for Down Payment": "status-gold",
   "Waiting for Supply": "status-orange",
-  "Waiting for Settlement": "status-purple",
+  "Waiting for Stocking Payment": "status-purple",
   Completed: "status-green",
 } as const;
 

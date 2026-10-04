@@ -19,7 +19,7 @@ export const STAGES: Array<{
   { key: "stampedByClient", label: "Stamped by Client", shortLabel: "Client Stamp" },
   { key: "downPayment", label: "Down Payment", shortLabel: "Payment" },
   { key: "supply", label: "Supply", shortLabel: "Supply" },
-  { key: "settlement", label: "Settlement", shortLabel: "Settlement" },
+  { key: "settlement", label: "Stocking Payment", shortLabel: "Stocking Payment" },
 ];
 
 export type ContractStages = Record<StageKey, boolean>;
@@ -51,7 +51,7 @@ export type ContractStatus =
   | "Waiting for Client Stamp"
   | "Waiting for Down Payment"
   | "Waiting for Supply"
-  | "Waiting for Settlement"
+  | "Waiting for Stocking Payment"
   | "Completed";
 
 export function getContractStatus(stages: ContractStages): ContractStatus {
@@ -59,7 +59,7 @@ export function getContractStatus(stages: ContractStages): ContractStatus {
   if (!stages.stampedByClient) return "Waiting for Client Stamp";
   if (!stages.downPayment) return "Waiting for Down Payment";
   if (!stages.supply) return "Waiting for Supply";
-  if (!stages.settlement) return "Waiting for Settlement";
+  if (!stages.settlement) return "Waiting for Stocking Payment";
   return "Completed";
 }
 
@@ -71,5 +71,5 @@ export function getProgress(stages: ContractStages) {
 export function canCompleteStage(stages: ContractStages, stage: StageKey) {
   const index = STAGE_KEYS.indexOf(stage);
   if (index <= 0) return true;
-  return stages[STAGE_KEYS[index - 1]];
+  return STAGE_KEYS.slice(0, index).every((key) => stages[key]);
 }
