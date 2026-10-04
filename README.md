@@ -1,6 +1,6 @@
 # STC Contract Flow
 
-A lightweight internal web app for tracking STC contracts from the first company stamp through settlement.
+A lightweight internal web app for tracking STC contracts from the first company stamp through the stocking payment.
 
 ## Workflow
 
@@ -10,7 +10,7 @@ Each contract follows this fixed order:
 2. Stamped by Client
 3. Down Payment
 4. Supply
-5. Settlement
+5. Stocking Payment
 
 The UI prevents completing a stage before the previous one. Reopening an earlier stage clears the later stages to keep the workflow consistent.
 
@@ -178,7 +178,7 @@ contracts/{contractId}
     stampedByClient
     downPayment
     supply
-    settlement
+    settlement  # internal key retained for backward compatibility
   stageDates
     stampedByUs
     stampedByClient
