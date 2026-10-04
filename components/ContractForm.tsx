@@ -16,6 +16,7 @@ interface ContractFormProps {
   initialValue?: ContractInput;
   submitLabel?: string;
   cancelHref?: string;
+  onCancel?: () => void;
   busy?: boolean;
   error?: string;
   onSubmit: (input: ContractInput) => Promise<void> | void;
@@ -25,6 +26,7 @@ export function ContractForm({
   initialValue = emptyValue,
   submitLabel = "Save Contract",
   cancelHref = "/contracts",
+  onCancel,
   busy = false,
   error,
   onSubmit,
@@ -46,6 +48,16 @@ export function ContractForm({
       product: value.product.trim(),
     });
   }
+
+  const cancelControl = onCancel ? (
+    <button type="button" className="button button-secondary" onClick={onCancel}>
+      <ArrowLeft size={16} /> Cancel
+    </button>
+  ) : (
+    <Link href={cancelHref} className="button button-secondary">
+      <ArrowLeft size={16} /> Cancel
+    </Link>
+  );
 
   return (
     <form className="contract-form card" onSubmit={submit}>
@@ -112,9 +124,7 @@ export function ContractForm({
       {error && <div className="form-error">{error}</div>}
 
       <div className="form-actions">
-        <Link href={cancelHref} className="button button-secondary">
-          <ArrowLeft size={16} /> Cancel
-        </Link>
+        {cancelControl}
         <button className="button button-primary" type="submit" disabled={busy}>
           <Save size={16} /> {busy ? "Saving…" : submitLabel}
         </button>
