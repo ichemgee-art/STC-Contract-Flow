@@ -1,3 +1,4 @@
+import { useLanguage } from "@/components/LanguageProvider";
 import { getContractStatus, type ContractStages } from "@/types/contract";
 
 const classByStatus = {
@@ -10,6 +11,7 @@ const classByStatus = {
 } as const;
 
 export function StatusBadge({ stages }: { stages: ContractStages }) {
+  const { statusLabel } = useLanguage();
   const status = getContractStatus(stages);
-  return <span className={"status-badge " + classByStatus[status]}>{status}</span>;
+  return <span className={"status-badge " + classByStatus[status]}>{statusLabel(status)}</span>;
 }
