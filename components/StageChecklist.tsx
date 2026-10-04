@@ -1,19 +1,8 @@
 "use client";
 
 import { Check, Circle, LoaderCircle } from "lucide-react";
+import { useLanguage } from "@/components/LanguageProvider";
 import { canCompleteStage, STAGES, type ContractRecord, type StageKey } from "@/types/contract";
-
-function formatStageDate(contract: ContractRecord, key: StageKey) {
-  const value = contract.stageDates[key];
-  if (!value) return "Pending";
-  return value.toDate().toLocaleString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export function StageChecklist({
   contract,
@@ -24,12 +13,27 @@ export function StageChecklist({
   busyStage?: StageKey | null;
   onToggle: (stage: StageKey, checked: boolean) => void;
 }) {
+  const { t, locale, stageLabel } = useLanguage();
+
+  function formatStageDate(key: StageKey) {
+    const value = contract.stageDates[key];
+    if (!value) return t("pending");
+    return value.toDate().toLocaleString(locale, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
   return (
     <div className="stage-checklist">
       {STAGES.map((stage, index) => {
         const checked = contract.stages[stage.key];
         const canCheck = checked || canCompleteStage(contract.stages, stage.key);
         const busy = busyStage === stage.key;
+        const label = stageLabel(stage.key);
 
         return (
           <div
@@ -42,16 +46,16 @@ export function StageChecklist({
               className={checked ? "stage-check checked" : "stage-check"}
               disabled={!canCheck || Boolean(busyStage)}
               onClick={() => onToggle(stage.key, !checked)}
-              aria-label={(checked ? "Reopen " : "Complete ") + stage.label}
+              aria-label={(checked ? t("reopen") : t("finish")) + " " + label}
             >
               {busy ? <LoaderCircle className="spin" size={17} /> : checked ? <Check size={17} /> : <Circle size={17} />}
             </button>
             <div className="stage-copy">
-              <strong>{stage.label}</strong>
-              <span>{formatStageDate(contract, stage.key)}</span>
+              <strong>{label}</strong>
+              <span>{formatStageDate(stage.key)}</span>
             </div>
             <div className={checked ? "stage-state done" : "stage-state"}>
-              {checked ? "Done" : canCheck ? "Next" : "Locked"}
+              {checked ? t("done") : canCheck ? t("next") : t("locked")}
             </div>
           </div>
         );
