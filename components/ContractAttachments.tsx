@@ -232,7 +232,9 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
         setError(notices.join(" "));
       }
     } finally {
-      await reload();
+      // Refresh the authoritative server list without erasing partial-upload
+      // warnings/errors that the user still needs to see.
+      await reload(true);
       setBusy(false);
       setProgress("");
       if (inputRef.current) inputRef.current.value = "";
