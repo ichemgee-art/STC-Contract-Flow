@@ -966,3 +966,177 @@ html[dir="rtl"] input[dir="ltr"] {
     left: 14px;
   }
 }
+
+
+/* Readability & mobile UX refinement */
+body {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.brand-lockup strong { font-size: 15px; }
+.brand-lockup span { font-size: 10.5px; line-height: 1.5; }
+.nav-link { min-height: 46px; font-size: 14px; }
+.sidebar-user-copy strong { font-size: 12.5px; }
+.sidebar-user-copy span { font-size: 10.5px; }
+.topbar h1 { font-size: 21px; }
+.topbar-kicker { font-size: 9px; }
+.button { min-height: 44px; padding-inline: 17px; font-size: 13.5px; }
+.button-large { min-height: 52px; }
+.icon-button { width: 40px; height: 40px; }
+.page-intro h2 { font-size: 29px; line-height: 1.3; }
+.page-intro p { font-size: 13.5px; }
+.eyebrow { font-size: 10.5px; }
+.screen-loader { font-size: 13px; }
+.login-card { width: min(100%, 450px); }
+.login-card h2 { font-size: 30px; }
+.login-card > .muted { font-size: 13px; }
+.field { gap: 8px; margin-bottom: 18px; }
+.field > span { font-size: 12.5px; }
+.field input,
+.field textarea,
+.field select,
+.input-control {
+  min-height: 50px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+.field input,
+.input-control { padding-inline: 14px; }
+.field textarea { padding: 13px 14px; }
+.form-error { font-size: 12px; padding: 12px 14px; }
+.login-help { font-size: 10.5px; }
+.language-switch { min-height: 42px; font-size: 12px; }
+
+html[dir="rtl"] .input-with-icon > svg {
+  left: auto;
+  right: 14px;
+}
+html[dir="rtl"] .input-with-icon input {
+  padding-left: 14px;
+  padding-right: 42px;
+}
+html[dir="ltr"] .input-with-icon input {
+  padding-left: 42px;
+}
+
+@media (max-width: 980px) {
+  .topbar {
+    height: 72px;
+    padding-inline: 18px;
+  }
+
+  .app-content {
+    padding: 22px 18px 100px;
+  }
+
+  .mobile-drawer {
+    width: min(88vw, 330px);
+    padding: 28px 20px 22px;
+  }
+
+  html[dir="rtl"] .mobile-drawer {
+    inset: 0 0 0 auto;
+  }
+
+  html[dir="rtl"] .drawer-close {
+    right: auto;
+    left: 13px;
+  }
+
+  .mobile-bottom-nav {
+    grid-template-columns: 1fr 1fr 68px;
+    left: 10px;
+    right: 10px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    height: 68px;
+    padding: 7px;
+    border-radius: 20px;
+  }
+
+  .mobile-nav-link {
+    height: 54px;
+    gap: 4px;
+  }
+
+  .mobile-nav-link span {
+    font-size: 10px;
+  }
+
+  .mobile-nav-add {
+    width: 52px;
+    height: 52px;
+    border-radius: 15px;
+  }
+}
+
+@media (max-width: 620px) {
+  body { font-size: 15px; }
+
+  .topbar {
+    height: 66px;
+    padding-inline: 12px;
+  }
+
+  .topbar h1 { font-size: 19px; }
+
+  .app-content {
+    padding: 16px 12px 96px;
+  }
+
+  .page-stack { gap: 16px; }
+
+  .page-intro {
+    gap: 8px;
+  }
+
+  .page-intro h2 {
+    font-size: 24px;
+    line-height: 1.35;
+  }
+
+  .page-intro p {
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .eyebrow { font-size: 10px; }
+
+  .button {
+    min-height: 48px;
+    border-radius: 12px;
+    font-size: 13.5px;
+  }
+
+  .field > span { font-size: 13px; }
+
+  .field input,
+  .field textarea,
+  .field select,
+  .input-control {
+    min-height: 52px;
+    font-size: 16px;
+  }
+
+  .language-switch {
+    min-height: 38px;
+  }
+
+  .login-form-panel {
+    align-items: start;
+    padding: 78px 14px 24px;
+  }
+
+  .login-card {
+    padding: 24px 18px;
+    border-radius: 18px;
+  }
+
+  .login-card h2 { font-size: 26px; }
+
+  .login-mobile-brand {
+    margin-bottom: 24px;
+  }
+
+  .login-mobile-brand strong { font-size: 15px; }
+}
