@@ -2,6 +2,7 @@
 
 import {
   FileText,
+  Languages,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -13,25 +14,27 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/AuthProvider";
-
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/contracts", label: "Contracts", icon: FileText },
-];
-
-function pageTitle(pathname: string) {
-  if (pathname === "/dashboard") return "Dashboard";
-  if (pathname === "/contracts") return "Contracts";
-  if (pathname === "/contracts/new") return "New Contract";
-  if (pathname.startsWith("/contracts/")) return "Contract Details";
-  return "STC Contract Flow";
-}
+import { useLanguage } from "@/components/LanguageProvider";
 
 export function ProtectedShell({ children }: { children: ReactNode }) {
   const { user, profile, loading, logout } = useAuth();
+  const { t, toggleLanguage, language } = useLanguage();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const navItems = [
+    { href: "/dashboard", label: t("dashboard"), icon: LayoutDashboard },
+    { href: "/contracts", label: t("contracts"), icon: FileText },
+  ];
+
+  function pageTitle() {
+    if (pathname === "/dashboard") return t("dashboard");
+    if (pathname === "/contracts") return t("contracts");
+    if (pathname === "/contracts/new") return t("newContract");
+    if (pathname.startsWith("/contracts/")) return t("contractDetails");
+    return "STC Contract Flow";
+  }
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -54,7 +57,7 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
       <div className="screen-loader">
         <div className="loader-mark">STC</div>
         <div className="loader-line" />
-        <p>Loading Contract Flow…</p>
+        <p>{t("loadingFlow")}</p>
       </div>
     );
   }
@@ -64,12 +67,9 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
       <div className="access-screen">
         <div className="access-card">
           <div className="access-icon"><ShieldCheck size={28} /></div>
-          <p className="eyebrow">Access control</p>
-          <h1>Your account is not enabled yet.</h1>
-          <p>
-            Ask the system administrator to activate your user profile in Firebase,
-            then sign in again.
-          </p>
+          <p className="eyebrow">{t("accessControl")}</p>
+          <h1>{t("accountNotEnabled")}</h1>
+          <p>{t("accountNotEnabledHelp")}</p>
           <button
             className="button button-primary"
             onClick={async () => {
@@ -77,7 +77,7 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
               router.replace("/login");
             }}
           >
-            <LogOut size={17} /> Sign out
+            <LogOut size={17} /> {t("signOut")}
           </button>
         </div>
       </div>
@@ -90,11 +90,11 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
         <div className="brand-monogram" aria-hidden="true">STC</div>
         <div>
           <strong>Contract Flow</strong>
-          <span>Specialized Trading & Construction</span>
+          <span>{t("companyNameFull")}</span>
         </div>
       </div>
 
-      <nav className="side-nav" aria-label="Main navigation">
+      <nav className="side-nav" aria-label={t("mainNavigation")}>
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href === "/contracts" && pathname.startsWith("/contracts/"));
           return (
@@ -109,18 +109,23 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
       <div className="sidebar-spacer" />
 
       <Link href="/contracts/new" className="button button-primary sidebar-add">
-        <Plus size={18} /> New Contract
+        <Plus size={18} /> {t("newContract")}
       </Link>
+
+      <button type="button" className="language-switch sidebar-language" onClick={toggleLanguage}>
+        <Languages size={17} />
+        <span>{t("languageLabel")}</span>
+      </button>
 
       <div className="sidebar-user">
         <div className="avatar">{initials}</div>
         <div className="sidebar-user-copy">
           <strong>{profile.displayName}</strong>
-          <span>{profile.role === "admin" ? "Administrator" : "Editor"}</span>
+          <span>{profile.role === "admin" ? t("administrator") : t("editor")}</span>
         </div>
         <button
           className="icon-button"
-          aria-label="Sign out"
+          aria-label={t("signOut")}
           onClick={async () => {
             await logout();
             router.replace("/login");
@@ -133,14 +138,14 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-language={language}>
       <aside className="sidebar">{nav}</aside>
 
       {mobileOpen && (
         <div className="mobile-drawer-layer">
-          <button className="mobile-backdrop" aria-label="Close menu" onClick={() => setMobileOpen(false)} />
+          <button className="mobile-backdrop" aria-label={t("closeMenu")} onClick={() => setMobileOpen(false)} />
           <aside className="mobile-drawer">
-            <button className="drawer-close icon-button" onClick={() => setMobileOpen(false)} aria-label="Close menu">
+            <button className="drawer-close icon-button" onClick={() => setMobileOpen(false)} aria-label={t("closeMenu")}>
               <X size={20} />
             </button>
             {nav}
@@ -151,24 +156,30 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
       <section className="app-main">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="icon-button mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open menu">
+            <button className="icon-button mobile-menu" onClick={() => setMobileOpen(true)} aria-label={t("openMenu")}>
               <Menu size={21} />
             </button>
             <div>
               <p className="topbar-kicker">STC Contract Flow</p>
-              <h1>{pageTitle(pathname)}</h1>
+              <h1>{pageTitle()}</h1>
             </div>
           </div>
 
-          <Link href="/contracts/new" className="button button-primary topbar-add">
-            <Plus size={18} /> Add Contract
-          </Link>
+          <div className="topbar-actions">
+            <button type="button" className="language-switch" onClick={toggleLanguage}>
+              <Languages size={17} />
+              <span>{t("languageLabel")}</span>
+            </button>
+            <Link href="/contracts/new" className="button button-primary topbar-add">
+              <Plus size={18} /> {t("addContract")}
+            </Link>
+          </div>
         </header>
 
         <main className="app-content">{children}</main>
       </section>
 
-      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+      <nav className="mobile-bottom-nav" aria-label={t("mobileNavigation")}>
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href === "/contracts" && pathname.startsWith("/contracts/"));
           return (
@@ -178,7 +189,7 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
             </Link>
           );
         })}
-        <Link href="/contracts/new" className="mobile-nav-add" aria-label="Add contract">
+        <Link href="/contracts/new" className="mobile-nav-add" aria-label={t("addContract")}>
           <Plus size={21} />
         </Link>
       </nav>
