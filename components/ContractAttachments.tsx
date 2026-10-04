@@ -38,12 +38,13 @@ function AttachmentThumbnail({
   onOpen: (attachment: ContractAttachment, url: string) => void;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const autoAttempted = useRef(false);
   const [src, setSrc] = useState("");
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const load = useCallback(async () => {
-    if (src || loading) return src;
+  const load = useCallback(async (forceRetry = false) => {
+    if (src || loading || (failed && !forceRetry)) return src;
     setLoading(true);
     setFailed(false);
 
@@ -58,7 +59,7 @@ function AttachmentThumbnail({
     } finally {
       setLoading(false);
     }
-  }, [attachment.pathname, contractId, loading, src]);
+  }, [attachment.pathname, contractId, failed, loading, src]);
 
   useEffect(() => {
     const element = buttonRef.current;
@@ -66,7 +67,8 @@ function AttachmentThumbnail({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
+        if (entries.some((entry) => entry.isIntersecting) && !autoAttempted.current) {
+          autoAttempted.current = true;
           void load().catch(() => undefined);
           observer.disconnect();
         }
@@ -95,7 +97,8 @@ function AttachmentThumbnail({
           onOpen(attachment, src);
           return;
         }
-        void load().then((url) => {
+        autoAttempted.current = true;
+        void load(true).then((url) => {
           if (url) onOpen(attachment, url);
         });
       }}
@@ -129,11 +132,11 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   const ar = language === "ar";
   const selectedAttachment = attachments.find(item => item.pathname === selectedPath) || attachments[0];
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (preserveError = false) => {
     try {
       const next = await listContractAttachments(contractId);
       setAttachments(next);
-      setError("");
+      if (!preserveError) setError("");
     } catch {
       setError(ar ? "تعذر تحميل صور العقد." : "Could not load contract images.");
     } finally {
@@ -152,14 +155,18 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   async function uploadFiles(files: File[]) {
     if (busy || loading || files.length === 0) return;
 
-    const images = files.filter((file) => file.type.startsWith("image/"));
+    const images = files.filter((file) =>
+      file.type.startsWith("image/")
+      || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name),
+    );
+
     if (!images.length) {
       setError(ar ? "اختر صورًا فقط." : "Please choose image files only.");
       return;
     }
 
-    const availableSlots = MAX_ATTACHMENTS - attachments.length;
-    const selected = images.slice(0, Math.max(0, availableSlots));
+    const availableSlots = Math.max(0, MAX_ATTACHMENTS - attachments.length);
+    const selected = images.slice(0, availableSlots);
 
     if (!selected.length) {
       setError(ar ? "وصلت للحد الأقصى: 5 صور للعقد." : "Maximum reached: 5 images per contract.");
@@ -170,36 +177,64 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
     setBusy(true);
     setError("");
 
+    let uploaded = 0;
+    const failures: string[] = [];
+
     try {
       for (let index = 0; index < selected.length; index += 1) {
+        const file = selected[index];
+
         setProgress(
           ar
             ? `جاري تحسين ورفع الصورة ${index + 1} من ${selected.length}`
             : `Optimizing and uploading ${index + 1} of ${selected.length}`,
         );
-        await addContractAttachment(contractId, selected[index]);
+
+        try {
+          await addContractAttachment(contractId, file);
+          uploaded += 1;
+        } catch (cause) {
+          const message = cause instanceof Error ? cause.message : "";
+
+          if (/Maximum attachments/i.test(message)) {
+            failures.push(ar ? "تم الوصول للحد الأقصى 5 صور." : "The 5-image limit was reached.");
+            break;
+          }
+
+          if (/Source image is too large/i.test(message)) {
+            failures.push(ar ? `${file.name}: حجم الصورة الأصلية كبير جدًا.` : `${file.name}: source image is too large.`);
+          } else if (/too large/i.test(message)) {
+            failures.push(ar ? `${file.name}: تعذر ضغط الصورة للحجم المسموح.` : `${file.name}: could not be compressed enough.`);
+          } else if (/Unsupported image|Only image/i.test(message)) {
+            failures.push(ar ? `${file.name}: صيغة الصورة غير مدعومة على هذا الجهاز.` : `${file.name}: image format is not supported on this device.`);
+          } else {
+            failures.push(ar ? `${file.name}: فشل الرفع.` : `${file.name}: upload failed.`);
+          }
+        }
       }
 
-      playUiSound("created");
+      if (uploaded > 0) {
+        playUiSound("created");
+      }
 
-      if (images.length > availableSlots) {
-        setError(
+      const skippedForLimit = Math.max(0, images.length - selected.length);
+      const notices = [...failures];
+
+      if (skippedForLimit > 0) {
+        notices.push(
           ar
-            ? `تم رفع ${selected.length} صورة فقط لأن الحد الأقصى 5 صور للعقد.`
-            : `Uploaded ${selected.length} image(s) because the maximum is 5 per contract.`,
+            ? `تم تجاهل ${skippedForLimit} صورة لأن الحد الأقصى للعقد هو 5 صور.`
+            : `${skippedForLimit} image(s) were skipped because the contract limit is 5.`,
         );
       }
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "";
-      if (/Maximum attachments/i.test(message)) {
-        setError(ar ? "وصلت للحد الأقصى: 5 صور للعقد." : "Maximum reached: 5 images per contract.");
-      } else if (/too large/i.test(message)) {
-        setError(ar ? "الصورة كبيرة جدًا حتى بعد التحسين. جرّب صورة أخرى." : "The image is still too large after optimization.");
-      } else {
-        setError(ar ? "تعذر رفع الصورة. جرّب مرة أخرى." : "Could not upload the image. Try again.");
+
+      if (notices.length) {
+        setError(notices.join(" "));
       }
     } finally {
-      await reload();
+      // Refresh the authoritative server list without erasing partial-upload
+      // warnings/errors that the user still needs to see.
+      await reload(true);
       setBusy(false);
       setProgress("");
       if (inputRef.current) inputRef.current.value = "";

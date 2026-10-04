@@ -1,7 +1,6 @@
 "use client";
 
 const PREFIX = "stc-private-images-v1-";
-export const IMAGE_CACHE_TTL = 24 * 60 * 60 * 1000;
 let generation = 0;
 const pending = new Map<string, Promise<Blob>>();
 const channel = typeof window !== "undefined" && typeof BroadcastChannel !== "undefined"
@@ -43,8 +42,8 @@ export async function invalidateAttachment(uid: string, url: string) {
   }
 }
 
-// Only synthetic, token-free responses are persisted. Authorization is checked by
-// the fresh attachment listing before the UI requests any cached image.
+// Only synthetic, token-free responses are persisted. Every cached read is
+// revalidated through the authenticated API before bytes are returned.
 export async function cachedAttachment(uid: string, url: string, headers: Record<string, string>, isCurrentUser: () => boolean) {
   const key = uid + url;
   const existing = pending.get(key);
@@ -54,26 +53,30 @@ export async function cachedAttachment(uid: string, url: string, headers: Record
     const cache = typeof caches === "undefined" ? null : await caches.open(PREFIX + uid).catch(() => null);
     const stored = await cache?.match(url).catch(() => undefined);
     if (!isCurrentUser() || epoch !== generation) throw new Error("Authentication changed.");
-    const savedAt = Number(stored?.headers.get("X-Saved-At") || 0);
-    if (stored && Date.now() - savedAt < IMAGE_CACHE_TTL) {
-      const blob = await stored.blob();
-      if (!isCurrentUser() || epoch !== generation) throw new Error("Authentication changed.");
-      return blob;
-    }
+    // Always revalidate with the authenticated API before serving cached bytes.
+    // A 304 keeps the bandwidth saving while ensuring disabled users, deleted
+    // contracts and revoked access cannot keep reading a previously cached image.
     const etag = stored?.headers.get("ETag");
     const response = await fetch(url, {
       headers: { ...headers, ...(etag ? { "If-None-Match": etag } : {}) },
       cache: "no-store",
+      signal: AbortSignal.timeout(45_000),
     });
     if (!isCurrentUser() || epoch !== generation) throw new Error("Authentication or attachment changed.");
+    if (response.status === 304 && !stored) {
+      throw new Error("Attachment cache is unavailable.");
+    }
     if (!response.ok && response.status !== 304) {
       await cache?.delete(url);
       throw new Error("Could not load attachment.");
     }
-    const blob = response.status === 304 && stored ? await stored.blob() : await response.blob();
+
+    const blob = response.status === 304 && stored
+      ? await stored.blob()
+      : await response.blob();
+
     const saved = new Response(blob, { headers: {
       "Content-Type": blob.type,
-      "X-Saved-At": String(Date.now()),
       ...(response.headers.get("ETag") || etag ? { ETag: response.headers.get("ETag") || etag! } : {}),
     } });
     if (cache && epoch === generation && isCurrentUser()) {
