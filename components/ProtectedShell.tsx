@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BellRing,
   FileText,
   Languages,
   LayoutDashboard,
@@ -15,10 +16,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useLanguage } from "@/components/LanguageProvider";
+import { useContractNotifications } from "@/components/useContractNotifications";
 
 export function ProtectedShell({ children }: { children: ReactNode }) {
   const { user, profile, loading, logout } = useAuth();
   const { t, toggleLanguage, language } = useLanguage();
+  const { enabled: notificationsEnabled, toggle: toggleNotifications } = useContractNotifications(language);
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -112,6 +115,16 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
         <Plus size={18} /> {t("newContract")}
       </Link>
 
+      <button
+        type="button"
+        className={notificationsEnabled ? "language-switch notification-toggle active" : "language-switch notification-toggle"}
+        onClick={() => void toggleNotifications()}
+        title={language === "ar" ? "تنبيهات العقود كل 5 ساعات" : "Contract reminders every 5 hours"}
+      >
+        <BellRing size={17} />
+        <span>{language === "ar" ? (notificationsEnabled ? "التنبيهات مفعلة" : "تفعيل التنبيهات") : (notificationsEnabled ? "Notifications on" : "Enable notifications")}</span>
+      </button>
+
       <button type="button" className="language-switch sidebar-language" onClick={toggleLanguage}>
         <Languages size={17} />
         <span>{t("languageLabel")}</span>
@@ -166,6 +179,16 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="topbar-actions">
+            <button
+              type="button"
+              className={notificationsEnabled ? "language-switch notification-toggle active" : "language-switch notification-toggle"}
+              onClick={() => void toggleNotifications()}
+              title={language === "ar" ? "تنبيهات العقود كل 5 ساعات" : "Contract reminders every 5 hours"}
+              aria-label={language === "ar" ? "تنبيهات العقود" : "Contract notifications"}
+            >
+              <BellRing size={17} />
+              <span>{language === "ar" ? (notificationsEnabled ? "مفعلة" : "تنبيهات") : (notificationsEnabled ? "On" : "Alerts")}</span>
+            </button>
             <button type="button" className="language-switch" onClick={toggleLanguage}>
               <Languages size={17} />
               <span>{t("languageLabel")}</span>
