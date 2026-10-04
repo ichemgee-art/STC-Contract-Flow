@@ -4,6 +4,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -14,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
+  getContractStatus,
   STAGE_KEYS,
   type ContractInput,
   type ContractRecord,
@@ -125,4 +127,32 @@ export async function updateContractStage(contract: ContractRecord, stage: Stage
 
 export async function deleteContract(id: string) {
   return deleteDoc(doc(db, "contracts", id));
+}
+
+
+export async function getContractSummary() {
+  const snapshot = await getDocs(query(contractsRef, orderBy("createdAt", "desc")));
+  const contracts = snapshot.docs.map(fromSnapshot);
+
+  const summary = {
+    total: contracts.length,
+    waitingStc: 0,
+    waitingClient: 0,
+    waitingPayment: 0,
+    waitingSupply: 0,
+    waitingSettlement: 0,
+    completed: 0,
+  };
+
+  for (const contract of contracts) {
+    const status = getContractStatus(contract.stages);
+    if (status === "Waiting for STC Stamp") summary.waitingStc += 1;
+    else if (status === "Waiting for Client Stamp") summary.waitingClient += 1;
+    else if (status === "Waiting for Down Payment") summary.waitingPayment += 1;
+    else if (status === "Waiting for Supply") summary.waitingSupply += 1;
+    else if (status === "Waiting for Settlement") summary.waitingSettlement += 1;
+    else summary.completed += 1;
+  }
+
+  return summary;
 }
