@@ -5,10 +5,12 @@ import {
   Image as ImageIcon,
   LoaderCircle,
   Plus,
+  QrCode,
   Trash2,
   UploadCloud,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AttachmentShareModal } from "@/components/AttachmentShareModal";
 import { ContractImageViewer } from "@/components/ContractImageViewer";
 import { useLanguage } from "@/components/LanguageProvider";
 import {
@@ -125,6 +127,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<{ attachment: ContractAttachment; url: string } | null>(null);
+  const [shareTarget, setShareTarget] = useState<ContractAttachment | null>(null);
   const [selectedPath, setSelectedPath] = useState("");
   const closePreview = useCallback(() => setPreview(null), []);
   const [dragging, setDragging] = useState(false);
@@ -178,6 +181,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
     setError("");
 
     let uploaded = 0;
+    let lastUploaded: ContractAttachment | null = null;
     const failures: string[] = [];
 
     try {
@@ -191,7 +195,8 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
         );
 
         try {
-          await addContractAttachment(contractId, file);
+          const attachment = await addContractAttachment(contractId, file);
+          lastUploaded = attachment;
           uploaded += 1;
         } catch (cause) {
           const message = cause instanceof Error ? cause.message : "";
@@ -215,6 +220,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
 
       if (uploaded > 0) {
         playUiSound("created");
+        if (lastUploaded) setShareTarget(lastUploaded);
       }
 
       const skippedForLimit = Math.max(0, images.length - selected.length);
@@ -411,6 +417,17 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
 
                 <button
                   type="button"
+                  className="attachment-share"
+                  disabled={busy}
+                  onClick={() => setShareTarget(attachment)}
+                  aria-label={ar ? "QR للصورة" : "Image QR"}
+                  title={ar ? "فتح QR للموبايل" : "Open QR for phone"}
+                >
+                  <QrCode size={16} />
+                </button>
+
+                <button
+                  type="button"
                   className="attachment-delete"
                   disabled={busy}
                   onClick={() => void removeAttachment(attachment)}
@@ -430,6 +447,15 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
         src={preview.url} name={preview.attachment.name} ar={ar}
         onClose={closePreview} onDownload={() => void downloadAttachment(preview.attachment)}
       /> : null}
+
+      {shareTarget ? (
+        <AttachmentShareModal
+          contractId={contractId}
+          attachment={shareTarget}
+          ar={ar}
+          onClose={() => setShareTarget(null)}
+        />
+      ) : null}
     </>
   );
 }
