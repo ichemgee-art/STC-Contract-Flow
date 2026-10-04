@@ -10,13 +10,13 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { useAuth } from "@/components/AuthProvider";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
 import {
   addContractAttachment,
   deleteContractAttachment,
-  subscribeContractAttachments,
+  fetchContractAttachment,
+  listContractAttachments,
   type ContractAttachment,
 } from "@/lib/contractAttachments";
 import { playUiSound, primeUiAudio } from "@/lib/sounds";
@@ -29,8 +29,85 @@ function formatBytes(value: number) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function AttachmentThumbnail({
+  contractId,
+  attachment,
+  onOpen,
+}: {
+  contractId: string;
+  attachment: ContractAttachment;
+  onOpen: (attachment: ContractAttachment, url: string) => void;
+}) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [src, setSrc] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (src || loading) return src;
+    setLoading(true);
+
+    try {
+      const blob = await fetchContractAttachment(contractId, attachment.pathname);
+      const next = URL.createObjectURL(blob);
+      setSrc(next);
+      return next;
+    } finally {
+      setLoading(false);
+    }
+  }, [attachment.pathname, contractId, loading, src]);
+
+  useEffect(() => {
+    const element = buttonRef.current;
+    if (!element || src) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void load().catch(() => undefined);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "220px" },
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [load, src]);
+
+  useEffect(() => {
+    return () => {
+      if (src) URL.revokeObjectURL(src);
+    };
+  }, [src]);
+
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      className="attachment-preview-button"
+      onClick={() => {
+        if (src) {
+          onOpen(attachment, src);
+          return;
+        }
+        void load().then((url) => {
+          if (url) onOpen(attachment, url);
+        });
+      }}
+    >
+      {src ? (
+        <img src={src} alt={attachment.name} loading="lazy" />
+      ) : (
+        <span className="attachment-image-placeholder">
+          {loading ? <LoaderCircle size={22} className="spin" /> : <ImageIcon size={22} />}
+        </span>
+      )}
+      <span className="attachment-expand"><Expand size={16} /></span>
+    </button>
+  );
+}
+
 export function ContractAttachments({ contractId }: { contractId: string }) {
-  const { user, profile } = useAuth();
   const { language, locale } = useLanguage();
   const inputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<ContractAttachment[]>([]);
@@ -38,27 +115,30 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
-  const [preview, setPreview] = useState<ContractAttachment | null>(null);
+  const [preview, setPreview] = useState<{ attachment: ContractAttachment; url: string } | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const ar = language === "ar";
 
-  useEffect(() => {
-    return subscribeContractAttachments(
-      contractId,
-      (next) => {
-        setAttachments(next);
-        setLoading(false);
-      },
-      () => {
-        setError(ar ? "تعذر تحميل صور العقد." : "Could not load contract images.");
-        setLoading(false);
-      },
-    );
+  const reload = useCallback(async () => {
+    try {
+      const next = await listContractAttachments(contractId);
+      setAttachments(next);
+      setError("");
+    } catch {
+      setError(ar ? "تعذر تحميل صور العقد." : "Could not load contract images.");
+    } finally {
+      setLoading(false);
+    }
   }, [contractId, ar]);
 
+  useEffect(() => {
+    setLoading(true);
+    void reload();
+  }, [reload]);
+
   async function uploadFiles(files: File[]) {
-    if (!user || !profile?.active || busy || files.length === 0) return;
+    if (busy || files.length === 0) return;
 
     const images = files.filter((file) => file.type.startsWith("image/"));
     if (!images.length) {
@@ -82,32 +162,31 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
       for (let index = 0; index < selected.length; index += 1) {
         setProgress(
           ar
-            ? `جاري تجهيز ورفع الصورة ${index + 1} من ${selected.length}`
+            ? `جاري تحسين ورفع الصورة ${index + 1} من ${selected.length}`
             : `Optimizing and uploading ${index + 1} of ${selected.length}`,
         );
-
-        await addContractAttachment(contractId, selected[index], {
-          uid: user.uid,
-          displayName: profile.displayName,
-        });
+        await addContractAttachment(contractId, selected[index]);
       }
 
+      await reload();
       playUiSound("created");
 
       if (images.length > availableSlots) {
         setError(
           ar
-            ? `تم رفع ${selected.length} صورة فقط للوصول للحد الأقصى 20 صورة.`
-            : `Uploaded ${selected.length} image(s) to stay within the 20-image limit.`,
+            ? `تم رفع ${selected.length} صورة فقط لأن الحد الأقصى 20 صورة للعقد.`
+            : `Uploaded ${selected.length} image(s) because the maximum is 20 per contract.`,
         );
       }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "";
-      setError(
-        message.includes("permission")
-          ? (ar ? "صلاحيات رفع صور العقود غير مفعلة بعد." : "Attachment permissions are not enabled yet.")
-          : (ar ? "تعذر رفع الصورة. جرّب صورة أخرى." : "Could not upload the image. Try another one."),
-      );
+      if (/Maximum attachments/i.test(message)) {
+        setError(ar ? "وصلت للحد الأقصى: 20 صورة للعقد." : "Maximum reached: 20 images per contract.");
+      } else if (/too large/i.test(message)) {
+        setError(ar ? "الصورة كبيرة جدًا حتى بعد التحسين. جرّب صورة أخرى." : "The image is still too large after optimization.");
+      } else {
+        setError(ar ? "تعذر رفع الصورة. جرّب مرة أخرى." : "Could not upload the image. Try again.");
+      }
     } finally {
       setBusy(false);
       setProgress("");
@@ -127,9 +206,11 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
 
     setBusy(true);
     setError("");
+
     try {
-      await deleteContractAttachment(contractId, attachment.id);
-      if (preview?.id === attachment.id) setPreview(null);
+      await deleteContractAttachment(contractId, attachment.pathname);
+      if (preview?.attachment.pathname === attachment.pathname) setPreview(null);
+      await reload();
       playUiSound("reopen");
     } catch {
       setError(ar ? "تعذر حذف الصورة." : "Could not delete the image.");
@@ -145,15 +226,32 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   }
 
   function uploadedAtText(attachment: ContractAttachment) {
-    return attachment.uploadedAt
-      ? attachment.uploadedAt.toDate().toLocaleString(locale, {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : ar ? "الآن" : "Just now";
+    const value = new Date(attachment.uploadedAt);
+    if (Number.isNaN(value.getTime())) return ar ? "الآن" : "Just now";
+
+    return value.toLocaleString(locale, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  async function downloadAttachment(attachment: ContractAttachment) {
+    try {
+      const blob = await fetchContractAttachment(contractId, attachment.pathname);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = attachment.name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setError(ar ? "تعذر تنزيل الصورة." : "Could not download the image.");
+    }
   }
 
   return (
@@ -165,8 +263,8 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
             <h3>{ar ? "صور العقد" : "Contract images"}</h3>
             <p>
               {ar
-                ? "احتفظ بصور العقد داخل نفس السجل. يتم تحسين حجم الصورة تلقائيًا مع الحفاظ على وضوح القراءة."
-                : "Keep contract images inside the same record. Images are optimized automatically while preserving readability."}
+                ? "احتفظ بصور العقد داخل نفس السجل. الصور خاصة ولا تُفتح إلا لمستخدم مسجل ومفعّل."
+                : "Keep contract images in the same record. Files stay private and require an active signed-in user."}
             </p>
           </div>
 
@@ -198,7 +296,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
           <div className="attachment-drop-icon">
             {busy ? <LoaderCircle size={24} className="spin" /> : <UploadCloud size={24} />}
           </div>
-          <div>
+          <div className="attachment-drop-copy">
             <strong>
               {busy
                 ? progress
@@ -208,8 +306,8 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
             </strong>
             <span>
               {ar
-                ? "JPG / PNG / صور الموبايل · يتم الضغط تلقائيًا"
-                : "JPG / PNG / mobile photos · automatically optimized"}
+                ? "صور الموبايل وJPG/PNG · تحسين تلقائي مع الحفاظ على وضوح الكتابة"
+                : "Mobile photos and JPG/PNG · automatic optimization while keeping text readable"}
             </span>
           </div>
           <button
@@ -239,19 +337,15 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
         ) : (
           <div className="attachment-grid">
             {attachments.map((attachment, index) => (
-              <article className="attachment-item" key={attachment.id}>
-                <button
-                  type="button"
-                  className="attachment-preview-button"
-                  onClick={() => setPreview(attachment)}
-                  aria-label={ar ? "فتح الصورة" : "Open image"}
-                >
-                  <img src={attachment.dataUrl} alt={attachment.name} />
+              <article className="attachment-item" key={attachment.pathname}>
+                <div className="attachment-thumb-wrap">
+                  <AttachmentThumbnail
+                    contractId={contractId}
+                    attachment={attachment}
+                    onOpen={(item, url) => setPreview({ attachment: item, url })}
+                  />
                   <span className="attachment-page-number">{index + 1}</span>
-                  <span className="attachment-expand">
-                    <Expand size={16} />
-                  </span>
-                </button>
+                </div>
 
                 <div className="attachment-item-copy">
                   <strong title={attachment.name}>{attachment.name}</strong>
@@ -286,18 +380,18 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
           <div className="attachment-modal-panel">
             <header>
               <div>
-                <strong>{preview.name}</strong>
-                <span>{uploadedAtText(preview)} · {formatBytes(preview.size)}</span>
+                <strong>{preview.attachment.name}</strong>
+                <span>{uploadedAtText(preview.attachment)} · {formatBytes(preview.attachment.size)}</span>
               </div>
               <div className="attachment-modal-actions">
-                <a
+                <button
+                  type="button"
                   className="icon-button"
-                  href={preview.dataUrl}
-                  download={preview.name}
+                  onClick={() => void downloadAttachment(preview.attachment)}
                   title={ar ? "تنزيل الصورة" : "Download image"}
                 >
                   <Download size={18} />
-                </a>
+                </button>
                 <button
                   type="button"
                   className="icon-button"
@@ -310,7 +404,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
             </header>
 
             <div className="attachment-modal-image">
-              <img src={preview.dataUrl} alt={preview.name} />
+              <img src={preview.url} alt={preview.attachment.name} />
             </div>
           </div>
         </div>
