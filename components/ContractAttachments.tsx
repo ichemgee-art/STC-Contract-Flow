@@ -152,14 +152,20 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   async function uploadFiles(files: File[]) {
     if (busy || loading || files.length === 0) return;
 
-    const images = files.filter((file) => file.type.startsWith("image/"));
+    const images = files.filter(
+      (file) =>
+        file.type.startsWith("image/")
+        || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name),
+    );
+    const ignoredFiles = files.length - images.length;
+
     if (!images.length) {
       setError(ar ? "اختر صورًا فقط." : "Please choose image files only.");
       return;
     }
 
-    const availableSlots = MAX_ATTACHMENTS - attachments.length;
-    const selected = images.slice(0, Math.max(0, availableSlots));
+    const availableSlots = Math.max(0, MAX_ATTACHMENTS - attachments.length);
+    const selected = images.slice(0, availableSlots);
 
     if (!selected.length) {
       setError(ar ? "وصلت للحد الأقصى: 5 صور للعقد." : "Maximum reached: 5 images per contract.");
@@ -170,36 +176,86 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
     setBusy(true);
     setError("");
 
+    let uploaded = 0;
+    const failures: Array<{ name: string; message: string }> = [];
+    let serverLimitReached = false;
+
     try {
       for (let index = 0; index < selected.length; index += 1) {
+        const file = selected[index];
         setProgress(
           ar
             ? `جاري تحسين ورفع الصورة ${index + 1} من ${selected.length}`
             : `Optimizing and uploading ${index + 1} of ${selected.length}`,
         );
-        await addContractAttachment(contractId, selected[index]);
+
+        try {
+          await addContractAttachment(contractId, file);
+          uploaded += 1;
+        } catch (cause) {
+          const message = cause instanceof Error ? cause.message : "Upload failed.";
+          failures.push({ name: file.name, message });
+
+          if (/Maximum attachments/i.test(message)) {
+            serverLimitReached = true;
+            break;
+          }
+        }
       }
 
-      playUiSound("created");
+      if (uploaded > 0) playUiSound("created");
 
-      if (images.length > availableSlots) {
-        setError(
+      const clientLimitSkipped = Math.max(0, images.length - selected.length);
+      const notes: string[] = [];
+
+      if (failures.length) {
+        const first = failures[0];
+        const tooLarge = /too large/i.test(first.message);
+        const unsupported = /unsupported|only image|invalid image/i.test(first.message);
+
+        if (ar) {
+          notes.push(
+            tooLarge
+              ? `تعذر رفع «${first.name}» لأن حجمها كبير جدًا.`
+              : unsupported
+                ? `تعذر رفع «${first.name}» لأن صيغة الصورة غير مدعومة أو الملف غير صالح.`
+                : `تعذر رفع ${failures.length} صورة. أول ملف: «${first.name}».`,
+          );
+        } else {
+          notes.push(
+            tooLarge
+              ? `Could not upload “${first.name}” because it is too large.`
+              : unsupported
+                ? `Could not upload “${first.name}” because the image format is unsupported or invalid.`
+                : `Could not upload ${failures.length} image(s). First file: “${first.name}”.`,
+          );
+        }
+      }
+
+      if (clientLimitSkipped > 0 || serverLimitReached) {
+        notes.push(
           ar
-            ? `تم رفع ${selected.length} صورة فقط لأن الحد الأقصى 5 صور للعقد.`
-            : `Uploaded ${selected.length} image(s) because the maximum is 5 per contract.`,
+            ? "تم الوصول للحد الأقصى: 5 صور للعقد."
+            : "The contract reached the maximum of 5 images.",
         );
       }
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "";
-      if (/Maximum attachments/i.test(message)) {
-        setError(ar ? "وصلت للحد الأقصى: 5 صور للعقد." : "Maximum reached: 5 images per contract.");
-      } else if (/too large/i.test(message)) {
-        setError(ar ? "الصورة كبيرة جدًا حتى بعد التحسين. جرّب صورة أخرى." : "The image is still too large after optimization.");
-      } else {
-        setError(ar ? "تعذر رفع الصورة. جرّب مرة أخرى." : "Could not upload the image. Try again.");
+
+      if (ignoredFiles > 0) {
+        notes.push(
+          ar
+            ? `تم تجاهل ${ignoredFiles} ملف لأنه ليس صورة.`
+            : `Ignored ${ignoredFiles} non-image file(s).`,
+        );
+      }
+
+      if (notes.length) {
+        const prefix = uploaded > 0
+          ? (ar ? `تم رفع ${uploaded} صورة بنجاح. ` : `Uploaded ${uploaded} image(s) successfully. `)
+          : "";
+        setError(prefix + notes.join(" "));
       }
     } finally {
-      await reload();
+      await reload(true);
       setBusy(false);
       setProgress("");
       if (inputRef.current) inputRef.current.value = "";
