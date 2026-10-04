@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CheckCircle2,
   Expand,
   Image as ImageIcon,
   LoaderCircle,
@@ -126,11 +127,18 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [preview, setPreview] = useState<{ attachment: ContractAttachment; url: string } | null>(null);
   const [shareTarget, setShareTarget] = useState<ContractAttachment | null>(null);
   const [selectedPath, setSelectedPath] = useState("");
   const closePreview = useCallback(() => setPreview(null), []);
   const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    if (!success) return;
+    const timer = window.setTimeout(() => setSuccess(""), 3600);
+    return () => window.clearTimeout(timer);
+  }, [success]);
 
   const ar = language === "ar";
   const selectedAttachment = attachments.find(item => item.pathname === selectedPath) || attachments[0];
@@ -381,6 +389,12 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
           </button>
         </div>
 
+        {success ? (
+          <div className="attachment-success" role="status" aria-live="polite">
+            <CheckCircle2 size={17} />
+            <span>{success}</span>
+          </div>
+        ) : null}
         {error ? <div className="attachment-error">{error}</div> : null}
 
         {loading ? (
