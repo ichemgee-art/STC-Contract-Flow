@@ -159,8 +159,8 @@ export default function ContractDetailsPage() {
           error={error}
           submitLabel="Save Changes"
           cancelHref={"/contracts/" + contract.id}
+          onCancel={() => setEditing(false)}
         />
-        <button className="edit-return-button" onClick={() => setEditing(false)}>Back to contract</button>
       </div>
     );
   }
