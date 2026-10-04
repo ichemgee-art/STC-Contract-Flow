@@ -3,6 +3,7 @@
 import { ArrowUpRight, Check, FileText, Search } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ExportButtons } from "@/components/ExportButtons";
 import { useLanguage } from "@/components/LanguageProvider";
 import { StatusBadge } from "@/components/StatusBadge";
 import { subscribeContracts, updateContractStage } from "@/lib/contracts";
@@ -28,7 +29,7 @@ const statuses: ContractStatus[] = [
 ];
 
 export default function ContractsPage() {
-  const { t, stageLabel, statusLabel, locale, dir } = useLanguage();
+  const { t, stageLabel, statusLabel, locale, dir, language } = useLanguage();
   const [contracts, setContracts] = useState<ContractRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -40,6 +41,19 @@ export default function ContractsPage() {
     return contract.createdAt
       ? contract.createdAt.toDate().toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" })
       : t("justNow");
+  }
+
+  function stageDateText(contract: ContractRecord, key: StageKey) {
+    const value = contract.stageDates[key];
+    return value
+      ? value.toDate().toLocaleString(locale, {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : language === "ar" ? "معلق" : "Pending";
   }
 
   useEffect(
@@ -75,6 +89,30 @@ export default function ContractsPage() {
     });
   }, [contracts, search, status]);
 
+  const exportRows = filtered.map((contract) => {
+    const row: Record<string, string | number> = {
+      [language === "ar" ? "الشركة" : "Company"]: contract.companyName,
+      [language === "ar" ? "المندوب" : "Representative"]: contract.salesRepresentative,
+      [language === "ar" ? "نوع العقد" : "Contract Type"]: contract.contractType,
+      [language === "ar" ? "المنتج" : "Product"]: contract.product,
+    };
+
+    STAGES.forEach((stage) => {
+      row[stageLabel(stage.key)] = stageDateText(contract, stage.key);
+    });
+
+    row[language === "ar" ? "الحالة الحالية" : "Current Status"] =
+      statusLabel(getContractStatus(contract.stages));
+    row[language === "ar" ? "نسبة الإنجاز" : "Progress"] = getProgress(contract.stages);
+    row[language === "ar" ? "تاريخ الإنشاء" : "Created"] = dateText(contract);
+    return row;
+  });
+
+  const activeFilterLabel =
+    status === "all"
+      ? t("allStatuses")
+      : statusLabel(status);
+
   async function toggle(contract: ContractRecord, key: StageKey) {
     primeUiAudio();
     const checked = !contract.stages[key];
@@ -105,6 +143,26 @@ export default function ContractsPage() {
           <h2>{t("contractsHeadline")}</h2>
           <p>{t("totalContractsShown", { total: contracts.length, shown: filtered.length })}</p>
         </div>
+        <ExportButtons
+          filename={language === "ar" ? "STC-العقود-المفلترة" : "STC-Filtered-Contracts"}
+          title={language === "ar" ? "سجل العقود" : "Contracts Register"}
+          subtitle={
+            language === "ar"
+              ? `الفلتر: ${activeFilterLabel}${search ? ` · البحث: ${search}` : ""}`
+              : `Filter: ${activeFilterLabel}${search ? ` · Search: ${search}` : ""}`
+          }
+          sheets={[{
+            name: language === "ar" ? "العقود" : "Contracts",
+            rows: exportRows,
+          }]}
+          kpis={[
+            { label: language === "ar" ? "إجمالي العقود" : "Total Contracts", value: contracts.length },
+            { label: language === "ar" ? "المعروض" : "Shown", value: filtered.length },
+            { label: language === "ar" ? "الفلتر" : "Filter", value: activeFilterLabel },
+          ]}
+          disabled={loading || filtered.length === 0}
+          compact
+        />
       </section>
 
       <section className="contract-toolbar card">
