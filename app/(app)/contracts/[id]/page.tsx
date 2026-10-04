@@ -21,6 +21,7 @@ import {
   updateContractBasics,
   updateContractStage,
 } from "@/lib/contracts";
+import { playUiSound, primeUiAudio } from "@/lib/sounds";
 import {
   getProgress,
   STAGE_KEYS,
@@ -83,6 +84,7 @@ export default function ContractDetailsPage() {
 
   async function toggleStage(stage: StageKey, checked: boolean) {
     if (!contract) return;
+    primeUiAudio();
 
     if (!checked) {
       const index = STAGE_KEYS.indexOf(stage);
@@ -94,6 +96,7 @@ export default function ContractDetailsPage() {
     setError("");
     try {
       await updateContractStage(contract, stage, checked);
+      playUiSound(checked ? (stage === "settlement" ? "completed" : "advance") : "reopen");
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : t("updateStageError"));
     } finally {
