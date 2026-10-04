@@ -1,0 +1,34 @@
+name: Build check
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEXT_PUBLIC_FIREBASE_API_KEY: "build-check-key"
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "build-check.firebaseapp.com"
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: "build-check"
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "build-check.firebasestorage.app"
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "123456789"
+      NEXT_PUBLIC_FIREBASE_APP_ID: "1:123456789:web:buildcheck"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
