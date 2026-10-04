@@ -5,6 +5,7 @@ import {
   Image as ImageIcon,
   LoaderCircle,
   Plus,
+  QrCode,
   Trash2,
   UploadCloud,
 } from "lucide-react";
@@ -126,6 +127,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<{ attachment: ContractAttachment; url: string } | null>(null);
+  const [shareTarget, setShareTarget] = useState<ContractAttachment | null>(null);
   const [selectedPath, setSelectedPath] = useState("");
   const closePreview = useCallback(() => setPreview(null), []);
   const [dragging, setDragging] = useState(false);
@@ -412,6 +414,17 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
                   <strong title={attachment.name}>{attachment.name}</strong>
                   <span>{formatBytes(attachment.size)} · {uploadedAtText(attachment)}</span>
                 </div>
+
+                <button
+                  type="button"
+                  className="attachment-share"
+                  disabled={busy}
+                  onClick={() => setShareTarget(attachment)}
+                  aria-label={ar ? "QR للصورة" : "Image QR"}
+                  title={ar ? "فتح QR للموبايل" : "Open QR for phone"}
+                >
+                  <QrCode size={16} />
+                </button>
 
                 <button
                   type="button"
