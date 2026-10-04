@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
 import { StatusBadge } from "@/components/StatusBadge";
 import { subscribeContracts, updateContractStage } from "@/lib/contracts";
+import { playUiSound, primeUiAudio } from "@/lib/sounds";
 import {
   canCompleteStage,
   getContractStatus,
@@ -75,6 +76,7 @@ export default function ContractsPage() {
   }, [contracts, search, status]);
 
   async function toggle(contract: ContractRecord, key: StageKey) {
+    primeUiAudio();
     const checked = !contract.stages[key];
 
     if (!checked) {
@@ -87,6 +89,7 @@ export default function ContractsPage() {
     setError("");
     try {
       await updateContractStage(contract, key, checked);
+      playUiSound(checked ? (key === "settlement" ? "completed" : "advance") : "reopen");
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : t("updateStageError"));
     } finally {
