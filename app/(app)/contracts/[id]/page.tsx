@@ -12,6 +12,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { ContractForm } from "@/components/ContractForm";
+import { useLanguage } from "@/components/LanguageProvider";
 import { StageChecklist } from "@/components/StageChecklist";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -28,28 +29,29 @@ import {
   type StageKey,
 } from "@/types/contract";
 
-function formatDate(value: ContractRecord["createdAt"]) {
-  return value
-    ? value.toDate().toLocaleString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "Just now";
-}
-
 export default function ContractDetailsPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { profile } = useAuth();
+  const { t, locale } = useLanguage();
   const [contract, setContract] = useState<ContractRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyStage, setBusyStage] = useState<StageKey | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  function formatDate(value: ContractRecord["createdAt"]) {
+    return value
+      ? value.toDate().toLocaleString(locale, {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : t("justNow");
+  }
 
   useEffect(() => {
     if (!params.id) return;
@@ -60,11 +62,11 @@ export default function ContractDetailsPage() {
         setLoading(false);
       },
       () => {
-        setError("Could not load this contract.");
+        setError(t("loadContractError"));
         setLoading(false);
       },
     );
-  }, [params.id]);
+  }, [params.id, t]);
 
   const basicValue = useMemo<ContractInput | undefined>(
     () =>
@@ -85,12 +87,7 @@ export default function ContractDetailsPage() {
     if (!checked) {
       const index = STAGE_KEYS.indexOf(stage);
       const laterCompleted = STAGE_KEYS.slice(index + 1).some((key) => contract.stages[key]);
-      if (
-        laterCompleted &&
-        !window.confirm("This will reopen the selected stage and clear every stage after it. Continue?")
-      ) {
-        return;
-      }
+      if (laterCompleted && !window.confirm(t("reopenConfirm"))) return;
     }
 
     setBusyStage(stage);
@@ -98,7 +95,7 @@ export default function ContractDetailsPage() {
     try {
       await updateContractStage(contract, stage, checked);
     } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : "Could not update this stage.");
+      setError(updateError instanceof Error ? updateError.message : t("updateStageError"));
     } finally {
       setBusyStage(null);
     }
@@ -112,7 +109,7 @@ export default function ContractDetailsPage() {
       await updateContractBasics(contract.id, input);
       setEditing(false);
     } catch {
-      setError("Could not save the changes.");
+      setError(t("saveChangesError"));
     } finally {
       setSaving(false);
     }
@@ -120,24 +117,25 @@ export default function ContractDetailsPage() {
 
   async function remove() {
     if (!contract || profile?.role !== "admin") return;
-    if (!window.confirm("Delete the contract for " + contract.companyName + "? This cannot be undone.")) return;
+    const message = t("deleteConfirmPrefix") + " " + contract.companyName + t("deleteConfirmSuffix");
+    if (!window.confirm(message)) return;
 
     try {
       await deleteContract(contract.id);
       router.replace("/contracts");
     } catch {
-      setError("Could not delete this contract.");
+      setError(t("deleteContractError"));
     }
   }
 
-  if (loading) return <div className="detail-state card">Loading contract…</div>;
+  if (loading) return <div className="detail-state card">{t("loadingContract")}</div>;
 
   if (!contract) {
     return (
       <div className="detail-state card">
         <FileText size={28} />
-        <strong>Contract not found</strong>
-        <span>It may have been deleted or you may not have access.</span>
+        <strong>{t("contractNotFound")}</strong>
+        <span>{t("contractNotFoundHelp")}</span>
       </div>
     );
   }
@@ -147,9 +145,9 @@ export default function ContractDetailsPage() {
       <div className="page-stack form-page">
         <section className="page-intro">
           <div>
-            <p className="eyebrow">Edit contract</p>
+            <p className="eyebrow">{t("editContract")}</p>
             <h2>{contract.companyName}</h2>
-            <p>Update the basic information without changing the workflow history.</p>
+            <p>{t("editContractDescription")}</p>
           </div>
         </section>
         <ContractForm
@@ -157,7 +155,7 @@ export default function ContractDetailsPage() {
           onSubmit={saveBasics}
           busy={saving}
           error={error}
-          submitLabel="Save Changes"
+          submitLabel={t("saveChanges")}
           cancelHref={"/contracts/" + contract.id}
           onCancel={() => setEditing(false)}
         />
@@ -172,7 +170,7 @@ export default function ContractDetailsPage() {
       <section className="contract-detail-hero card">
         <div>
           <div className="detail-title-line">
-            <p className="eyebrow">Contract record</p>
+            <p className="eyebrow">{t("contractRecord")}</p>
             <StatusBadge stages={contract.stages} />
           </div>
           <h2>{contract.companyName}</h2>
@@ -181,11 +179,11 @@ export default function ContractDetailsPage() {
 
         <div className="detail-actions">
           <button className="button button-secondary" onClick={() => setEditing(true)}>
-            <Edit3 size={16} /> Edit
+            <Edit3 size={16} /> {t("edit")}
           </button>
           {profile?.role === "admin" && (
             <button className="button button-danger" onClick={remove}>
-              <Trash2 size={16} /> Delete
+              <Trash2 size={16} /> {t("delete")}
             </button>
           )}
         </div>
@@ -196,22 +194,22 @@ export default function ContractDetailsPage() {
       <section className="detail-metrics">
         <article className="detail-metric card">
           <UserRound size={18} />
-          <span>Representative</span>
+          <span>{t("representative")}</span>
           <strong>{contract.salesRepresentative}</strong>
         </article>
         <article className="detail-metric card">
           <PackageCheck size={18} />
-          <span>Product / Item</span>
+          <span>{t("productItem")}</span>
           <strong>{contract.product}</strong>
         </article>
         <article className="detail-metric card">
           <CalendarDays size={18} />
-          <span>Created</span>
+          <span>{t("created")}</span>
           <strong>{formatDate(contract.createdAt)}</strong>
         </article>
         <article className="detail-metric progress-metric card">
           <div className="progress-number">{progress}%</div>
-          <span>Workflow progress</span>
+          <span>{t("workflowProgress")}</span>
           <div className="detail-progress-track">
             <div style={{ width: progress + "%" }} />
           </div>
@@ -222,10 +220,10 @@ export default function ContractDetailsPage() {
         <article className="workflow-card card">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Workflow</p>
-              <h3>Contract stages</h3>
+              <p className="eyebrow">{t("workflow")}</p>
+              <h3>{t("contractStages")}</h3>
             </div>
-            <span>Complete in order</span>
+            <span>{t("completeInOrder")}</span>
           </div>
           <StageChecklist contract={contract} busyStage={busyStage} onToggle={toggleStage} />
         </article>
@@ -233,21 +231,19 @@ export default function ContractDetailsPage() {
         <aside className="record-card card">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Record info</p>
-              <h3>Audit details</h3>
+              <p className="eyebrow">{t("recordInfo")}</p>
+              <h3>{t("auditDetails")}</h3>
             </div>
           </div>
 
           <dl className="record-list">
-            <div><dt>Contract ID</dt><dd>{contract.id}</dd></div>
-            <div><dt>Created by</dt><dd>{contract.createdByName || "STC User"}</dd></div>
-            <div><dt>Created at</dt><dd>{formatDate(contract.createdAt)}</dd></div>
-            <div><dt>Last updated</dt><dd>{formatDate(contract.updatedAt)}</dd></div>
+            <div><dt>{t("contractId")}</dt><dd dir="ltr">{contract.id}</dd></div>
+            <div><dt>{t("createdBy")}</dt><dd>{contract.createdByName || t("stcUser")}</dd></div>
+            <div><dt>{t("createdAt")}</dt><dd>{formatDate(contract.createdAt)}</dd></div>
+            <div><dt>{t("lastUpdated")}</dt><dd>{formatDate(contract.updatedAt)}</dd></div>
           </dl>
 
-          <div className="record-note">
-            Stage dates are captured automatically when a checkbox is completed.
-          </div>
+          <div className="record-note">{t("stageDatesNote")}</div>
         </aside>
       </section>
     </div>
