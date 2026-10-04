@@ -38,12 +38,13 @@ function AttachmentThumbnail({
   onOpen: (attachment: ContractAttachment, url: string) => void;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const autoAttempted = useRef(false);
   const [src, setSrc] = useState("");
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const load = useCallback(async () => {
-    if (src || loading) return src;
+  const load = useCallback(async (forceRetry = false) => {
+    if (src || loading || (failed && !forceRetry)) return src;
     setLoading(true);
     setFailed(false);
 
@@ -58,7 +59,7 @@ function AttachmentThumbnail({
     } finally {
       setLoading(false);
     }
-  }, [attachment.pathname, contractId, loading, src]);
+  }, [attachment.pathname, contractId, failed, loading, src]);
 
   useEffect(() => {
     const element = buttonRef.current;
@@ -66,7 +67,8 @@ function AttachmentThumbnail({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
+        if (entries.some((entry) => entry.isIntersecting) && !autoAttempted.current) {
+          autoAttempted.current = true;
           void load().catch(() => undefined);
           observer.disconnect();
         }
@@ -95,7 +97,8 @@ function AttachmentThumbnail({
           onOpen(attachment, src);
           return;
         }
-        void load().then((url) => {
+        autoAttempted.current = true;
+        void load(true).then((url) => {
           if (url) onOpen(attachment, url);
         });
       }}
