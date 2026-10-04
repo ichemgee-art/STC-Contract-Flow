@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/AuthProvider";
 import "./globals.css";
+import "./components.css";
 
 export const metadata: Metadata = {
   title: "STC Contract Flow",
