@@ -19,7 +19,7 @@ function reminderCopy(language: Language, summary: Awaited<ReturnType<typeof get
         `ختم العميل: ${summary.waitingClient}`,
         `دفعة مقدمة: ${summary.waitingPayment}`,
         `توريد: ${summary.waitingSupply}`,
-        `دفعة التشوين: ${summary.waitingSettlement}`,
+        `دفعة التشوين: ${summary.waitingStockingPayment}`,
         `مكتمل: ${summary.completed}`,
       ].join(" · "),
     };
@@ -33,7 +33,7 @@ function reminderCopy(language: Language, summary: Awaited<ReturnType<typeof get
       `Client stamp: ${summary.waitingClient}`,
       `Payment: ${summary.waitingPayment}`,
       `Supply: ${summary.waitingSupply}`,
-      `Stocking payment: ${summary.waitingSettlement}`,
+      `Stocking payment: ${summary.waitingStockingPayment}`,
       `Completed: ${summary.completed}`,
     ].join(" · "),
   };
