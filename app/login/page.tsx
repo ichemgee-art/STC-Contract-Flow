@@ -1,21 +1,16 @@
 "use client";
 
-import { LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { Languages, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { useLanguage } from "@/components/LanguageProvider";
 import { auth } from "@/lib/firebase";
-
-function readableAuthError(code?: string) {
-  if (code === "auth/invalid-credential") return "Incorrect email or password.";
-  if (code === "auth/too-many-requests") return "Too many attempts. Try again later.";
-  if (code === "auth/user-disabled") return "This account has been disabled.";
-  return "Could not sign in. Check your details and try again.";
-}
 
 export default function LoginPage() {
   const { user, profile, loading, refreshProfile } = useAuth();
+  const { t, toggleLanguage } = useLanguage();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,6 +20,13 @@ export default function LoginPage() {
   useEffect(() => {
     if (!loading && user && profile?.active) router.replace("/dashboard");
   }, [loading, user, profile, router]);
+
+  function readableAuthError(code?: string) {
+    if (code === "auth/invalid-credential") return t("incorrectCredentials");
+    if (code === "auth/too-many-requests") return t("tooManyAttempts");
+    if (code === "auth/user-disabled") return t("accountDisabled");
+    return t("genericLoginError");
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,7 +39,7 @@ export default function LoginPage() {
 
       if (!nextProfile?.active) {
         await signOut(auth);
-        setError("Your account exists, but access to STC Contract Flow is not enabled.");
+        setError(t("accountExistsNoAccess"));
         return;
       }
 
@@ -55,28 +57,30 @@ export default function LoginPage() {
 
   return (
     <main className="login-page">
+      <button type="button" className="language-switch login-language" onClick={toggleLanguage}>
+        <Languages size={17} />
+        <span>{t("languageLabel")}</span>
+      </button>
+
       <section className="login-brand-panel">
         <div className="login-brand-content">
           <div className="brand-lockup login-brand-lockup">
             <div className="brand-monogram light" aria-hidden="true">STC</div>
             <div>
               <strong>Contract Flow</strong>
-              <span>Specialized Trading & Construction</span>
+              <span>{t("companyNameFull")}</span>
             </div>
           </div>
 
           <div className="login-message">
-            <p className="eyebrow light-text">Internal workflow</p>
-            <h1>Every contract.<br />One clear flow.</h1>
-            <p>
-              Track signatures, down payments, supply and settlement without
-              spreadsheets or scattered follow-ups.
-            </p>
+            <p className="eyebrow light-text">{t("internalWorkflow")}</p>
+            <h1>{t("loginHeadline")}</h1>
+            <p>{t("loginDescription")}</p>
           </div>
 
           <div className="login-security-note">
             <ShieldCheck size={20} />
-            <span>Private access · Firebase Authentication · Firestore Security Rules</span>
+            <span>{t("privateAccess")}</span>
           </div>
         </div>
       </section>
@@ -88,12 +92,12 @@ export default function LoginPage() {
             <strong>Contract Flow</strong>
           </div>
 
-          <p className="eyebrow">Welcome back</p>
-          <h2>Sign in to continue</h2>
-          <p className="muted">Use the company account enabled by your administrator.</p>
+          <p className="eyebrow">{t("welcomeBack")}</p>
+          <h2>{t("signInContinue")}</h2>
+          <p className="muted">{t("loginHelp")}</p>
 
           <label className="field">
-            <span>Email address</span>
+            <span>{t("email")}</span>
             <div className="input-with-icon">
               <Mail size={17} />
               <input
@@ -103,12 +107,13 @@ export default function LoginPage() {
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="name@company.com"
                 required
+                dir="ltr"
               />
             </div>
           </label>
 
           <label className="field">
-            <span>Password</span>
+            <span>{t("password")}</span>
             <div className="input-with-icon">
               <LockKeyhole size={17} />
               <input
@@ -118,6 +123,7 @@ export default function LoginPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="••••••••"
                 required
+                dir="ltr"
               />
             </div>
           </label>
@@ -125,10 +131,10 @@ export default function LoginPage() {
           {error && <div className="form-error" role="alert">{error}</div>}
 
           <button className="button button-primary button-large" type="submit" disabled={submitting}>
-            {submitting ? "Signing in…" : "Sign in"}
+            {submitting ? t("signingIn") : t("signIn")}
           </button>
 
-          <p className="login-help">No public sign-up is available for this system.</p>
+          <p className="login-help">{t("noSignup")}</p>
         </form>
       </section>
     </main>
