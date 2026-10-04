@@ -218,7 +218,7 @@ export async function getContractSummary() {
     waitingClient: 0,
     waitingPayment: 0,
     waitingSupply: 0,
-    waitingSettlement: 0,
+    waitingStockingPayment: 0,
     completed: 0,
   };
 
@@ -228,7 +228,7 @@ export async function getContractSummary() {
     else if (status === "Waiting for Client Stamp") summary.waitingClient += 1;
     else if (status === "Waiting for Down Payment") summary.waitingPayment += 1;
     else if (status === "Waiting for Supply") summary.waitingSupply += 1;
-    else if (status === "Waiting for Stocking Payment") summary.waitingSettlement += 1;
+    else if (status === "Waiting for Stocking Payment") summary.waitingStockingPayment += 1;
     else summary.completed += 1;
   }
 
