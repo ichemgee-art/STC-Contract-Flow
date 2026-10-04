@@ -62,18 +62,31 @@ export async function GET(
 
       const result = await get(pathname, {
         access: "private",
-        useCache: true,
+        ifNoneMatch: request.headers.get("if-none-match") ?? undefined,
       });
 
       if (!result) {
         return NextResponse.json({ error: "Attachment not found." }, { status: 404 });
       }
 
+      const commonHeaders = {
+        ETag: result.blob.etag,
+        "Cache-Control": "private, no-cache",
+        "X-Content-Type-Options": "nosniff",
+      };
+
+      if (result.statusCode === 304) {
+        return new Response(null, {
+          status: 304,
+          headers: commonHeaders,
+        });
+      }
+
       return new Response(result.stream, {
         headers: {
+          ...commonHeaders,
           "Content-Type": result.blob.contentType || inferContentType(pathname),
           "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(displayNameFromPath(pathname))}`,
-          "Cache-Control": "private, max-age=300",
         },
       });
     }
