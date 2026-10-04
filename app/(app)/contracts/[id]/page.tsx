@@ -12,6 +12,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { ContractForm } from "@/components/ContractForm";
+import { ExportButtons } from "@/components/ExportButtons";
 import { useLanguage } from "@/components/LanguageProvider";
 import { StageChecklist } from "@/components/StageChecklist";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -23,7 +24,9 @@ import {
 } from "@/lib/contracts";
 import { playUiSound, primeUiAudio } from "@/lib/sounds";
 import {
+  getContractStatus,
   getProgress,
+  STAGES,
   STAGE_KEYS,
   type ContractInput,
   type ContractRecord,
@@ -34,7 +37,7 @@ export default function ContractDetailsPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { profile } = useAuth();
-  const { t, locale } = useLanguage();
+  const { t, locale, language, stageLabel, statusLabel } = useLanguage();
   const [contract, setContract] = useState<ContractRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyStage, setBusyStage] = useState<StageKey | null>(null);
@@ -143,6 +146,51 @@ export default function ContractDetailsPage() {
     );
   }
 
+  const progress = getProgress(contract.stages);
+  const currentStatus = getContractStatus(contract.stages);
+
+  const exportSheets = [
+    {
+      name: language === "ar" ? "بيانات العقد" : "Contract Details",
+      rows: [{
+        [language === "ar" ? "رقم العقد" : "Contract ID"]: contract.id,
+        [language === "ar" ? "الشركة" : "Company"]: contract.companyName,
+        [language === "ar" ? "المندوب" : "Representative"]: contract.salesRepresentative,
+        [language === "ar" ? "نوع العقد" : "Contract Type"]: contract.contractType,
+        [language === "ar" ? "المنتج" : "Product"]: contract.product,
+        [language === "ar" ? "الحالة الحالية" : "Current Status"]: statusLabel(currentStatus),
+        [language === "ar" ? "نسبة الإنجاز" : "Progress"]: progress,
+        [language === "ar" ? "أنشأه" : "Created By"]: contract.createdByName || t("stcUser"),
+        [language === "ar" ? "تاريخ الإنشاء" : "Created At"]: formatDate(contract.createdAt),
+        [language === "ar" ? "آخر تحديث" : "Last Updated"]: formatDate(contract.updatedAt),
+      }],
+    },
+    {
+      name: language === "ar" ? "مراحل العقد" : "Contract Stages",
+      rows: STAGES.map((stage, index) => ({
+        [language === "ar" ? "الترتيب" : "Order"]: index + 1,
+        [language === "ar" ? "المرحلة" : "Stage"]: stageLabel(stage.key),
+        [language === "ar" ? "الحالة" : "Status"]:
+          contract.stages[stage.key]
+            ? (language === "ar" ? "تم" : "Done")
+            : (language === "ar" ? "معلق" : "Pending"),
+        [language === "ar" ? "التاريخ" : "Date"]:
+          contract.stageDates[stage.key]
+            ? formatDate(contract.stageDates[stage.key])
+            : (language === "ar" ? "معلق" : "Pending"),
+      })),
+    },
+  ];
+
+  const exportKpis = [
+    { label: language === "ar" ? "الحالة" : "Status", value: statusLabel(currentStatus) },
+    { label: language === "ar" ? "نسبة الإنجاز" : "Progress", value: progress + "%" },
+    {
+      label: language === "ar" ? "المراحل المكتملة" : "Completed Stages",
+      value: STAGE_KEYS.filter((key) => contract.stages[key]).length + " / " + STAGE_KEYS.length,
+    },
+  ];
+
   if (editing && basicValue) {
     return (
       <div className="page-stack form-page">
@@ -152,6 +200,14 @@ export default function ContractDetailsPage() {
             <h2>{contract.companyName}</h2>
             <p>{t("editContractDescription")}</p>
           </div>
+          <ExportButtons
+            filename={`STC-${contract.companyName}-Contract`}
+            title={language === "ar" ? `تقرير عقد - ${contract.companyName}` : `Contract Report - ${contract.companyName}`}
+            subtitle={language === "ar" ? "تقرير تفصيلي لمسار العقد" : "Detailed contract workflow report"}
+            sheets={exportSheets}
+            kpis={exportKpis}
+            compact
+          />
         </section>
         <ContractForm
           initialValue={basicValue}
@@ -165,8 +221,6 @@ export default function ContractDetailsPage() {
       </div>
     );
   }
-
-  const progress = getProgress(contract.stages);
 
   return (
     <div className="page-stack">
@@ -191,6 +245,17 @@ export default function ContractDetailsPage() {
           )}
         </div>
       </section>
+
+      <div className="page-export-row">
+        <ExportButtons
+          filename={`STC-${contract.companyName}-Contract`}
+          title={language === "ar" ? `تقرير عقد - ${contract.companyName}` : `Contract Report - ${contract.companyName}`}
+          subtitle={language === "ar" ? "تقرير تفصيلي لمسار العقد" : "Detailed contract workflow report"}
+          sheets={exportSheets}
+          kpis={exportKpis}
+          compact
+        />
+      </div>
 
       {error && <div className="notice notice-error">{error}</div>}
 
