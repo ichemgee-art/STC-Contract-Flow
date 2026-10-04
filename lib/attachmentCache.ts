@@ -42,8 +42,8 @@ export async function invalidateAttachment(uid: string, url: string) {
   }
 }
 
-// Only synthetic, token-free responses are persisted. Authorization is checked by
-// the fresh attachment listing before the UI requests any cached image.
+// Only synthetic, token-free responses are persisted. Every cached read is
+// revalidated through the authenticated API before bytes are returned.
 export async function cachedAttachment(uid: string, url: string, headers: Record<string, string>, isCurrentUser: () => boolean) {
   const key = uid + url;
   const existing = pending.get(key);
@@ -60,6 +60,7 @@ export async function cachedAttachment(uid: string, url: string, headers: Record
     const response = await fetch(url, {
       headers: { ...headers, ...(etag ? { "If-None-Match": etag } : {}) },
       cache: "no-store",
+      signal: AbortSignal.timeout(45_000),
     });
     if (!isCurrentUser() || epoch !== generation) throw new Error("Authentication or attachment changed.");
     if (response.status === 304 && !stored) {
