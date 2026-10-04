@@ -7,6 +7,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   updateDoc,
   type DocumentData,
@@ -15,6 +16,7 @@ import {
 import { auth, db } from "@/lib/firebase";
 import { clearAttachmentCaches } from "@/lib/attachmentCache";
 import {
+  canCompleteStage,
   getContractStatus,
   STAGE_KEYS,
   type ContractInput,
@@ -101,27 +103,67 @@ export async function updateContractBasics(id: string, input: ContractInput) {
 
 export async function updateContractStage(contract: ContractRecord, stage: StageKey, checked: boolean) {
   const stageIndex = STAGE_KEYS.indexOf(stage);
-  const nextStages = { ...contract.stages };
-  const nextDates: Record<string, unknown> = { ...contract.stageDates };
+  if (stageIndex < 0) throw new Error("Invalid workflow stage.");
 
-  if (checked) {
-    if (stageIndex > 0 && !nextStages[STAGE_KEYS[stageIndex - 1]]) {
-      throw new Error("Complete the previous stage first.");
-    }
-    nextStages[stage] = true;
-    nextDates[stage] = serverTimestamp();
-  } else {
-    for (let index = stageIndex; index < STAGE_KEYS.length; index += 1) {
-      const key = STAGE_KEYS[index];
-      nextStages[key] = false;
-      nextDates[key] = null;
-    }
-  }
+  const contractRef = doc(db, "contracts", contract.id);
+  const localLaterProgress =
+    !checked
+    && STAGE_KEYS.slice(stageIndex + 1).some((key) => contract.stages[key]);
 
-  return updateDoc(doc(db, "contracts", contract.id), {
-    stages: nextStages,
-    stageDates: nextDates,
-    updatedAt: serverTimestamp(),
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(contractRef);
+    if (!snapshot.exists()) throw new Error("Contract no longer exists.");
+
+    const data = snapshot.data();
+    const currentStages = data.stages as ContractStages | undefined;
+    const currentDates = data.stageDates as Record<StageKey, unknown> | undefined;
+
+    if (
+      !currentStages
+      || !currentDates
+      || STAGE_KEYS.some((key) => typeof currentStages[key] !== "boolean")
+    ) {
+      throw new Error("Contract workflow data is invalid.");
+    }
+
+    // A realtime snapshot can be a few milliseconds behind another user's edit.
+    // Always decide against the latest Firestore state so one user cannot
+    // accidentally overwrite another user's workflow progress.
+    if (currentStages[stage] === checked) return;
+
+    const nextStages = { ...currentStages };
+    const nextDates: Record<StageKey, unknown> = { ...currentDates };
+
+    if (checked) {
+      if (!canCompleteStage(currentStages, stage)) {
+        throw new Error("Complete the previous stages first.");
+      }
+
+      nextStages[stage] = true;
+      nextDates[stage] = serverTimestamp();
+    } else {
+      const latestLaterProgress = STAGE_KEYS
+        .slice(stageIndex + 1)
+        .some((key) => currentStages[key]);
+
+      // If this browser did not know about newly completed later stages, do not
+      // silently erase another user's fresh progress without confirmation.
+      if (latestLaterProgress && !localLaterProgress) {
+        throw new Error("The workflow changed while you were editing. Try again.");
+      }
+
+      for (let index = stageIndex; index < STAGE_KEYS.length; index += 1) {
+        const key = STAGE_KEYS[index];
+        nextStages[key] = false;
+        nextDates[key] = null;
+      }
+    }
+
+    transaction.update(contractRef, {
+      stages: nextStages,
+      stageDates: nextDates,
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
@@ -186,7 +228,7 @@ export async function getContractSummary() {
     else if (status === "Waiting for Client Stamp") summary.waitingClient += 1;
     else if (status === "Waiting for Down Payment") summary.waitingPayment += 1;
     else if (status === "Waiting for Supply") summary.waitingSupply += 1;
-    else if (status === "Waiting for Settlement") summary.waitingSettlement += 1;
+    else if (status === "Waiting for Stocking Payment") summary.waitingSettlement += 1;
     else summary.completed += 1;
   }
 
