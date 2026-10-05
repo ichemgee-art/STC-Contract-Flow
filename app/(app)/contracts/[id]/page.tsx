@@ -40,7 +40,13 @@ export default function ContractDetailsPage() {
   const router = useRouter();
   const { profile } = useAuth();
   const { t, locale, language, stageLabel, statusLabel } = useLanguage();
-  const { getContract: getCachedContract, loading: contractsLoading, error: contractsError } = useContracts();
+  const {
+    getContract: getCachedContract,
+    loading: contractsLoading,
+    error: contractsError,
+    refreshContract,
+    removeContractLocal,
+  } = useContracts();
   const cachedContract = params.id ? getCachedContract(params.id) : null;
   const [fallbackContract, setFallbackContract] = useState<ContractRecord | null>(null);
   const [fallbackChecked, setFallbackChecked] = useState(false);
@@ -120,6 +126,11 @@ export default function ContractDetailsPage() {
     setError("");
     try {
       await updateContractStage(contract, stage, checked);
+      if (cachedContract) {
+        await refreshContract(contract.id);
+      } else {
+        setFallbackContract(await fetchContract(contract.id));
+      }
       playUiSound(checked ? (stage === "settlement" ? "completed" : "advance") : "reopen");
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : t("updateStageError"));
@@ -134,6 +145,11 @@ export default function ContractDetailsPage() {
     setError("");
     try {
       await updateContractBasics(contract.id, input);
+      if (cachedContract) {
+        await refreshContract(contract.id);
+      } else {
+        setFallbackContract(await fetchContract(contract.id));
+      }
       setEditing(false);
     } catch {
       setError(t("saveChangesError"));
@@ -149,6 +165,7 @@ export default function ContractDetailsPage() {
 
     try {
       await deleteContract(contract.id);
+      removeContractLocal(contract.id);
       router.replace("/contracts");
     } catch {
       setError(t("deleteContractError"));
