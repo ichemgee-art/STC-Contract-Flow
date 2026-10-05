@@ -424,13 +424,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
                 key={selectedAttachment.pathname}
                 contractId={contractId}
                 attachment={selectedAttachment}
-                onOpen={(item, url) => {
-                  if (isPdfAttachment(item)) {
-                    window.open(url, "_blank", "noopener,noreferrer");
-                  } else {
-                    setPreview({ attachment: item, url });
-                  }
-                }}
+                onOpen={(item, url) => setPreview({ attachment: item, url })}
               />
               <span>{ar ? "اضغط لفتح المستند والتكبير" : "Open document to zoom and inspect"}</span>
             </div>
@@ -480,8 +474,12 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
       </section>
 
       {preview ? <ContractImageViewer
-        src={preview.url} name={preview.attachment.name} ar={ar}
-        onClose={closePreview} onDownload={() => void downloadAttachment(preview.attachment)}
+        src={preview.url}
+        name={preview.attachment.name}
+        contentType={preview.attachment.contentType}
+        ar={ar}
+        onClose={closePreview}
+        onDownload={() => void downloadAttachment(preview.attachment)}
       /> : null}
 
       {shareTarget ? (
