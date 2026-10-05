@@ -209,7 +209,7 @@ export default function ContractsPage() {
         <div>
           <p className="eyebrow">{t("contractRegister")}</p>
           <h2>{t("contractsHeadline")}</h2>
-          <p>{t("totalContractsShown", {
+          <p data-testid="contracts-total">{t("totalContractsShown", {
             total: totalCount || contracts.length,
             shown: hasMore ? `${filtered.length}+` : filtered.length,
           })}</p>
@@ -378,6 +378,9 @@ export default function ContractsPage() {
               <div className="contracts-load-more">
                 <button
                   type="button"
+                  data-testid="contracts-load-more"
+                  data-loaded={visibleContracts.length}
+                  data-total={totalCount || filtered.length}
                   className="button button-secondary"
                   onClick={() => void showMoreContracts()}
                   disabled={loadingMore}
