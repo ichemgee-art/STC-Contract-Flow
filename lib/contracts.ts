@@ -31,8 +31,8 @@ import {
 
 const contractsRef = collection(db, "contracts");
 
-export const CONTRACT_REALTIME_WINDOW = 100;
-export const CONTRACT_PAGE_SIZE = 100;
+export const CONTRACT_REALTIME_WINDOW = 50;
+export const CONTRACT_PAGE_SIZE = 50;
 
 export interface ContractPage {
   contracts: ContractRecord[];
