@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getContractSummary } from "@/lib/contracts";
+import { useContracts } from "@/components/ContractsProvider";
+import { summarizeContracts } from "@/lib/contracts";
 import { playUiSound, primeUiAudio } from "@/lib/sounds";
 import type { Language } from "@/components/LanguageProvider";
 
@@ -9,7 +10,7 @@ const ENABLED_KEY = "stc-contract-reminders-enabled";
 const LAST_REMINDER_KEY = "stc-contract-last-reminder";
 const FIVE_HOURS = 5 * 60 * 60 * 1000;
 
-function reminderCopy(language: Language, summary: Awaited<ReturnType<typeof getContractSummary>>) {
+function reminderCopy(language: Language, summary: ReturnType<typeof summarizeContracts>) {
   if (language === "ar") {
     return {
       title: "🔔 متابعة عقود STC",
@@ -40,6 +41,7 @@ function reminderCopy(language: Language, summary: Awaited<ReturnType<typeof get
 }
 
 export function useContractNotifications(language: Language) {
+  const { contracts, loading } = useContracts();
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
@@ -52,7 +54,8 @@ export function useContractNotifications(language: Language) {
   }, []);
 
   const showReminder = useCallback(async () => {
-    const summary = await getContractSummary();
+    if (loading) return;
+    const summary = summarizeContracts(contracts);
     const copy = reminderCopy(language, summary);
 
     playUiSound("reminder");
@@ -71,7 +74,7 @@ export function useContractNotifications(language: Language) {
     }
 
     window.localStorage.setItem(LAST_REMINDER_KEY, String(Date.now()));
-  }, [language]);
+  }, [contracts, language, loading]);
 
   useEffect(() => {
     if (!enabled) return;

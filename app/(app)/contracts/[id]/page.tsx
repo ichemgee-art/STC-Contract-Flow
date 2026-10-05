@@ -12,6 +12,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { ContractAttachments } from "@/components/ContractAttachments";
+import { useContracts } from "@/components/ContractsProvider";
 import { ContractForm } from "@/components/ContractForm";
 import { ExportButtons } from "@/components/ExportButtons";
 import { useLanguage } from "@/components/LanguageProvider";
@@ -19,7 +20,7 @@ import { StageChecklist } from "@/components/StageChecklist";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   deleteContract,
-  subscribeContract,
+  getContract as fetchContract,
   updateContractBasics,
   updateContractStage,
 } from "@/lib/contracts";
@@ -39,8 +40,12 @@ export default function ContractDetailsPage() {
   const router = useRouter();
   const { profile } = useAuth();
   const { t, locale, language, stageLabel, statusLabel } = useLanguage();
-  const [contract, setContract] = useState<ContractRecord | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { getContract: getCachedContract, loading: contractsLoading, error: contractsError } = useContracts();
+  const cachedContract = params.id ? getCachedContract(params.id) : null;
+  const [fallbackContract, setFallbackContract] = useState<ContractRecord | null>(null);
+  const [fallbackChecked, setFallbackChecked] = useState(false);
+  const contract = cachedContract ?? fallbackContract;
+  const loading = contractsLoading || (!cachedContract && !fallbackChecked);
   const [busyStage, setBusyStage] = useState<StageKey | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,18 +65,33 @@ export default function ContractDetailsPage() {
 
   useEffect(() => {
     if (!params.id) return;
-    return subscribeContract(
-      params.id,
-      (next) => {
-        setContract(next);
-        setLoading(false);
-      },
-      () => {
-        setError(t("loadContractError"));
-        setLoading(false);
-      },
-    );
-  }, [params.id, t]);
+
+    if (cachedContract) {
+      setFallbackContract(null);
+      setFallbackChecked(true);
+      return;
+    }
+
+    if (contractsLoading) return;
+
+    let cancelled = false;
+    setFallbackChecked(false);
+
+    void fetchContract(params.id)
+      .then((next) => {
+        if (!cancelled) setFallbackContract(next);
+      })
+      .catch(() => {
+        if (!cancelled) setError(t("loadContractError"));
+      })
+      .finally(() => {
+        if (!cancelled) setFallbackChecked(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cachedContract, contractsLoading, params.id, t]);
 
   const basicValue = useMemo<ContractInput | undefined>(
     () =>
@@ -258,6 +278,7 @@ export default function ContractDetailsPage() {
         />
       </div>
 
+      {contractsError && <div className="notice notice-error">{t("loadContractError")}</div>}
       {error && <div className="notice notice-error">{error}</div>}
 
       <section className="detail-metrics">

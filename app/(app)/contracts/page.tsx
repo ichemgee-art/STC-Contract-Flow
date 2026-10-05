@@ -1,12 +1,13 @@
 "use client";
 
 import { ArrowUpRight, Check, FileText, Search } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useContracts } from "@/components/ContractsProvider";
 import { ExportButtons } from "@/components/ExportButtons";
 import { useLanguage } from "@/components/LanguageProvider";
+import { SmartLink } from "@/components/SmartLink";
 import { StatusBadge } from "@/components/StatusBadge";
-import { subscribeContracts, updateContractStage } from "@/lib/contracts";
+import { updateContractStage } from "@/lib/contracts";
 import { playUiSound, primeUiAudio } from "@/lib/sounds";
 import {
   canCompleteStage,
@@ -30,9 +31,9 @@ const statuses: ContractStatus[] = [
 
 export default function ContractsPage() {
   const { t, stageLabel, statusLabel, locale, dir, language } = useLanguage();
-  const [contracts, setContracts] = useState<ContractRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { contracts, loading, syncing, error: loadError } = useContracts();
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [status, setStatus] = useState<"all" | ContractStatus>("all");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -56,23 +57,9 @@ export default function ContractsPage() {
       : language === "ar" ? "معلق" : "Pending";
   }
 
-  useEffect(
-    () =>
-      subscribeContracts(
-        (next) => {
-          setContracts(next);
-          setLoading(false);
-        },
-        () => {
-          setError(t("loadContractsError"));
-          setLoading(false);
-        },
-      ),
-    [t],
-  );
 
   const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase();
+    const needle = deferredSearch.trim().toLowerCase();
     return contracts.filter((contract) => {
       const matchesText =
         !needle ||
@@ -87,9 +74,9 @@ export default function ContractsPage() {
       const matchesStatus = status === "all" || currentStatus === status;
       return matchesText && matchesStatus;
     });
-  }, [contracts, search, status]);
+  }, [contracts, deferredSearch, status]);
 
-  const exportRows = filtered.map((contract) => {
+  const exportRows = useMemo(() => filtered.map((contract) => {
     const row: Record<string, string | number> = {
       [language === "ar" ? "الشركة" : "Company"]: contract.companyName,
       [language === "ar" ? "المندوب" : "Representative"]: contract.salesRepresentative,
@@ -106,12 +93,36 @@ export default function ContractsPage() {
     row[language === "ar" ? "نسبة الإنجاز" : "Progress"] = getProgress(contract.stages);
     row[language === "ar" ? "تاريخ الإنشاء" : "Created"] = dateText(contract);
     return row;
-  });
+  }), [filtered, language, locale, stageLabel, statusLabel, t]);
 
   const activeFilterLabel =
     status === "all"
       ? t("allStatuses")
       : statusLabel(status);
+
+  const PAGE_SIZE = 50;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [deferredSearch, status]);
+
+  const visibleContracts = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount],
+  );
+
+  const exportSheets = useMemo(() => [{
+    name: language === "ar" ? "العقود" : "Contracts",
+    rows: exportRows,
+  }], [exportRows, language]);
+
+  const exportKpis = useMemo(() => [
+    { label: language === "ar" ? "إجمالي العقود" : "Total Contracts", value: contracts.length },
+    { label: language === "ar" ? "المعروض" : "Shown", value: filtered.length },
+    { label: language === "ar" ? "الفلتر" : "Filter", value: activeFilterLabel },
+  ], [activeFilterLabel, contracts.length, filtered.length, language]);
+
 
   async function toggle(contract: ContractRecord, key: StageKey) {
     primeUiAudio();
@@ -151,15 +162,8 @@ export default function ContractsPage() {
               ? `الفلتر: ${activeFilterLabel}${search ? ` · البحث: ${search}` : ""}`
               : `Filter: ${activeFilterLabel}${search ? ` · Search: ${search}` : ""}`
           }
-          sheets={[{
-            name: language === "ar" ? "العقود" : "Contracts",
-            rows: exportRows,
-          }]}
-          kpis={[
-            { label: language === "ar" ? "إجمالي العقود" : "Total Contracts", value: contracts.length },
-            { label: language === "ar" ? "المعروض" : "Shown", value: filtered.length },
-            { label: language === "ar" ? "الفلتر" : "Filter", value: activeFilterLabel },
-          ]}
+          sheets={exportSheets}
+          kpis={exportKpis}
           disabled={loading || filtered.length === 0}
           compact
         />
@@ -185,7 +189,9 @@ export default function ContractsPage() {
         </select>
       </section>
 
+      {loadError && <div className="notice notice-error">{t("loadContractsError")}</div>}
       {error && <div className="notice notice-error">{error}</div>}
+      {syncing && !loading ? <div className="sync-indicator">{language === "ar" ? "جاري مزامنة أحدث البيانات…" : "Syncing latest data…"}</div> : null}
 
       <section className="contracts-table-card card">
         {loading ? (
@@ -211,13 +217,13 @@ export default function ContractsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((contract) => (
+                  {visibleContracts.map((contract) => (
                     <tr key={contract.id}>
                       <td>
-                        <Link className="table-company" href={"/contracts/" + contract.id}>
+                        <SmartLink className="table-company" href={"/contracts/" + contract.id}>
                           <strong>{contract.companyName}</strong>
                           <span>{contract.product} · {dateText(contract)}</span>
-                        </Link>
+                        </SmartLink>
                       </td>
                       <td><span className="cell-main">{contract.salesRepresentative}</span></td>
                       <td>
@@ -245,13 +251,13 @@ export default function ContractsPage() {
                       })}
                       <td><StatusBadge stages={contract.stages} /></td>
                       <td>
-                        <Link
+                        <SmartLink
                           className="row-open"
                           href={"/contracts/" + contract.id}
                           aria-label={t("openContract") + " " + contract.companyName}
                         >
                           <ArrowUpRight size={17} className={dir === "rtl" ? "rtl-open-arrow" : ""} />
-                        </Link>
+                        </SmartLink>
                       </td>
                     </tr>
                   ))}
@@ -260,16 +266,16 @@ export default function ContractsPage() {
             </div>
 
             <div className="contracts-mobile-list">
-              {filtered.map((contract) => (
+              {visibleContracts.map((contract) => (
                 <article className="contract-mobile-card" key={contract.id}>
                   <div className="mobile-card-head">
                     <div>
                       <strong>{contract.companyName}</strong>
                       <span>{contract.product} · {contract.contractType}</span>
                     </div>
-                    <Link className="row-open" href={"/contracts/" + contract.id}>
+                    <SmartLink className="row-open" href={"/contracts/" + contract.id}>
                       <ArrowUpRight size={17} className={dir === "rtl" ? "rtl-open-arrow" : ""} />
-                    </Link>
+                    </SmartLink>
                   </div>
 
                   <div className="mobile-contract-meta">
@@ -302,6 +308,20 @@ export default function ContractsPage() {
                 </article>
               ))}
             </div>
+
+            {visibleContracts.length < filtered.length ? (
+              <div className="contracts-load-more">
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => setVisibleCount((current) => current + PAGE_SIZE)}
+                >
+                  {language === "ar"
+                    ? `عرض المزيد (${visibleContracts.length} من ${filtered.length})`
+                    : `Load more (${visibleContracts.length} of ${filtered.length})`}
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </section>

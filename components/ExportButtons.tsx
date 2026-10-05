@@ -3,12 +3,7 @@
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import { useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
-import {
-  exportExcel,
-  exportPdf,
-  type ExportKpi,
-  type ExportSheet,
-} from "@/lib/exporters";
+import type { ExportKpi, ExportSheet } from "@/lib/exporters";
 
 export function ExportButtons({
   filename,
@@ -35,6 +30,7 @@ export function ExportButtons({
     setBusy("excel");
     setError("");
     try {
+      const { exportExcel } = await import("@/lib/exporters");
       await exportExcel({
         filename,
         title,
@@ -60,6 +56,7 @@ export function ExportButtons({
     setBusy("pdf");
     setError("");
     try {
+      const { exportPdf } = await import("@/lib/exporters");
       await exportPdf({
         filename,
         title,

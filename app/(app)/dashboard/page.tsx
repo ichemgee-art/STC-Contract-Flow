@@ -9,18 +9,17 @@ import {
   TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useContracts } from "@/components/ContractsProvider";
 import { ExportButtons } from "@/components/ExportButtons";
+import { SmartLink } from "@/components/SmartLink";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLanguage } from "@/components/LanguageProvider";
-import { subscribeContracts } from "@/lib/contracts";
 import { getContractStatus, getProgress, STAGES, type ContractRecord } from "@/types/contract";
 
 export default function DashboardPage() {
   const { t, stageLabel, statusLabel, locale, language } = useLanguage();
-  const [contracts, setContracts] = useState<ContractRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { contracts, loading, syncing, error } = useContracts();
 
   function formatDate(contract: ContractRecord) {
     if (!contract.createdAt) return t("justNow");
@@ -44,20 +43,6 @@ export default function DashboardPage() {
       : language === "ar" ? "معلق" : "Pending";
   }
 
-  useEffect(
-    () =>
-      subscribeContracts(
-        (next) => {
-          setContracts(next);
-          setLoading(false);
-        },
-        () => {
-          setError(t("loadContractsError"));
-          setLoading(false);
-        },
-      ),
-    [t],
-  );
 
   const stats = useMemo(() => {
     const completed = contracts.filter((contract) => getContractStatus(contract.stages) === "Completed").length;
@@ -87,7 +72,7 @@ export default function DashboardPage() {
     [contracts],
   );
 
-  const exportSheets = [{
+  const exportSheets = useMemo(() => [{
     name: language === "ar" ? "العقود" : "Contracts",
     subtitle: language === "ar" ? "تقرير شامل لحالة العقود" : "Complete contract status report",
     rows: contracts.map((contract) => {
@@ -99,18 +84,33 @@ export default function DashboardPage() {
       };
 
       STAGES.forEach((stage) => {
-        row[stageLabel(stage.key)] = formatStageDate(contract, stage.key);
+        const value = contract.stageDates[stage.key];
+        row[stageLabel(stage.key)] = value
+          ? value.toDate().toLocaleString(locale, {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : language === "ar" ? "معلق" : "Pending";
       });
 
       row[language === "ar" ? "الحالة الحالية" : "Current Status"] =
         statusLabel(getContractStatus(contract.stages));
       row[language === "ar" ? "نسبة الإنجاز" : "Progress"] = getProgress(contract.stages);
-      row[language === "ar" ? "تاريخ الإنشاء" : "Created"] = formatDate(contract);
+      row[language === "ar" ? "تاريخ الإنشاء" : "Created"] = contract.createdAt
+        ? contract.createdAt.toDate().toLocaleDateString(locale, {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : t("justNow");
       return row;
     }),
-  }];
+  }], [contracts, language, locale, stageLabel, statusLabel, t]);
 
-  const exportKpis = [
+  const exportKpis = useMemo(() => [
     { label: t("totalContracts"), value: stats.total },
     { label: t("inProgress"), value: stats.active },
     { label: t("waitingClientStamp"), value: stats.waitingClient },
@@ -119,7 +119,7 @@ export default function DashboardPage() {
       label: language === "ar" ? "نسبة الإكمال" : "Completion",
       value: stats.completion + "%",
     },
-  ];
+  ], [language, stats, t]);
 
   return (
     <div className="page-stack">
@@ -161,7 +161,8 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {error && <div className="notice notice-error">{error}</div>}
+      {error && <div className="notice notice-error">{t("loadContractsError")}</div>}
+      {syncing && !loading ? <div className="sync-indicator">{language === "ar" ? "جاري مزامنة أحدث البيانات…" : "Syncing latest data…"}</div> : null}
 
       <section className="stats-grid">
         <article className="stat-card card">
@@ -228,7 +229,7 @@ export default function DashboardPage() {
           ) : (
             <div className="recent-list">
               {contracts.slice(0, 5).map((contract) => (
-                <Link className="recent-row" href={"/contracts/" + contract.id} key={contract.id}>
+                <SmartLink className="recent-row" href={"/contracts/" + contract.id} key={contract.id}>
                   <div className="recent-company">
                     <strong>{contract.companyName}</strong>
                     <span>{contract.product} · {contract.contractType}</span>
@@ -237,7 +238,7 @@ export default function DashboardPage() {
                     <StatusBadge stages={contract.stages} />
                     <span>{getProgress(contract.stages)}% · {formatDate(contract)}</span>
                   </div>
-                </Link>
+                </SmartLink>
               ))}
             </div>
           )}
