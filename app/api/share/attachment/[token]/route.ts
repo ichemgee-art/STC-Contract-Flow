@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 function inferContentType(pathname: string) {
   const lower = pathname.toLowerCase();
+  if (lower.endsWith(".pdf")) return "application/pdf";
   if (lower.endsWith(".png")) return "image/png";
   if (lower.endsWith(".webp")) return "image/webp";
   return "image/jpeg";
