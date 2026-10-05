@@ -10,6 +10,10 @@ function busyResponse() {
 // A store-level lease serializes uploads, attachment deletion and contract
 // deletion across Vercel instances. Writes are bounded below the lease TTL.
 export async function acquireAttachmentLock(contractId: string) {
+  if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true") {
+    return async () => undefined;
+  }
+
   const path = `attachment-locks/${encodeURIComponent(contractId)}.json`;
   const previous = await get(path, { access: "private", useCache: false });
   let etag: string | undefined;
