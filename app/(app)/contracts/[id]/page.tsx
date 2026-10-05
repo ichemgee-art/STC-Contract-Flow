@@ -277,7 +277,7 @@ export default function ContractDetailsPage() {
             <Edit3 size={16} /> {t("edit")}
           </button>
           {profile?.role === "admin" && (
-            <button className="button button-danger" onClick={remove}>
+            <button data-testid="contract-delete" className="button button-danger" onClick={remove}>
               <Trash2 size={16} /> {t("delete")}
             </button>
           )}
