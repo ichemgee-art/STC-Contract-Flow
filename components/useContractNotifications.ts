@@ -41,7 +41,7 @@ function reminderCopy(language: Language, summary: ReturnType<typeof summarizeCo
 }
 
 export function useContractNotifications(language: Language) {
-  const { contracts, loading } = useContracts();
+  const { contracts, loading, ensureAllLoaded } = useContracts();
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
@@ -55,7 +55,8 @@ export function useContractNotifications(language: Language) {
 
   const showReminder = useCallback(async () => {
     if (loading) return;
-    const summary = summarizeContracts(contracts);
+    const source = await ensureAllLoaded();
+    const summary = summarizeContracts(source.length ? source : contracts);
     const copy = reminderCopy(language, summary);
 
     playUiSound("reminder");
@@ -74,7 +75,7 @@ export function useContractNotifications(language: Language) {
     }
 
     window.localStorage.setItem(LAST_REMINDER_KEY, String(Date.now()));
-  }, [contracts, language, loading]);
+  }, [contracts, ensureAllLoaded, language, loading]);
 
   useEffect(() => {
     if (!enabled) return;
