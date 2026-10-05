@@ -22,6 +22,7 @@ import {
   listContractAttachments,
   type ContractAttachment,
 } from "@/lib/contractAttachments";
+import { renderPdfFirstPage } from "@/lib/pdfPreview";
 import { playUiSound, primeUiAudio } from "@/lib/sounds";
 
 const MAX_ATTACHMENTS = 5;
@@ -56,31 +57,45 @@ function AttachmentThumbnail({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const autoAttempted = useRef(false);
   const isPdf = isPdfAttachment(attachment);
-  const [src, setSrc] = useState("");
+  const [fileSrc, setFileSrc] = useState("");
+  const [previewSrc, setPreviewSrc] = useState("");
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
   const load = useCallback(async (forceRetry = false) => {
-    if (src || loading || (failed && !forceRetry)) return src;
+    if (fileSrc || loading || (failed && !forceRetry)) return fileSrc;
     setLoading(true);
     setFailed(false);
 
     try {
       const blob = await fetchContractAttachment(contractId, attachment.pathname);
-      const next = URL.createObjectURL(blob);
-      setSrc(next);
-      return next;
+      const nextFileSrc = URL.createObjectURL(blob);
+      let nextPreviewSrc = nextFileSrc;
+
+      try {
+        if (isPdf) {
+          const previewBlob = await renderPdfFirstPage(blob);
+          nextPreviewSrc = URL.createObjectURL(previewBlob);
+        }
+      } catch {
+        URL.revokeObjectURL(nextFileSrc);
+        throw new Error("Could not render PDF preview.");
+      }
+
+      setFileSrc(nextFileSrc);
+      setPreviewSrc(nextPreviewSrc);
+      return nextFileSrc;
     } catch {
       setFailed(true);
       return "";
     } finally {
       setLoading(false);
     }
-  }, [attachment.pathname, contractId, failed, loading, src]);
+  }, [attachment.pathname, contractId, failed, fileSrc, isPdf, loading]);
 
   useEffect(() => {
     const element = buttonRef.current;
-    if (!element || src || isPdf) return;
+    if (!element || previewSrc) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -95,13 +110,14 @@ function AttachmentThumbnail({
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [isPdf, load, src]);
+  }, [load, previewSrc]);
 
   useEffect(() => {
     return () => {
-      if (src) URL.revokeObjectURL(src);
+      if (fileSrc) URL.revokeObjectURL(fileSrc);
+      if (previewSrc && previewSrc !== fileSrc) URL.revokeObjectURL(previewSrc);
     };
-  }, [src]);
+  }, [fileSrc, previewSrc]);
 
   return (
     <button
@@ -110,21 +126,31 @@ function AttachmentThumbnail({
       className="attachment-preview-button"
       aria-label={attachment.name}
       onClick={() => {
-        if (src) {
-          onOpen(attachment, src);
+        if (fileSrc) {
+          onOpen(attachment, fileSrc);
           return;
         }
+
         autoAttempted.current = true;
         void load(true).then((url) => {
           if (url) onOpen(attachment, url);
         });
       }}
     >
-      {src ? (
-        <img src={src} alt={attachment.name} loading="lazy" />
+      {previewSrc ? (
+        <img
+          src={previewSrc}
+          alt={isPdf ? `${attachment.name} — page 1` : attachment.name}
+          loading="lazy"
+        />
       ) : (
-        <span className="attachment-image-placeholder">
-          {loading ? <LoaderCircle size={22} className="spin" /> : <ImageIcon size={22} />}
+        <span className={isPdf ? "attachment-pdf-placeholder" : "attachment-image-placeholder"}>
+          {loading
+            ? <LoaderCircle size={22} className="spin" />
+            : isPdf
+              ? <FileText size={30} />
+              : <ImageIcon size={22} />}
+          {isPdf ? <strong>PDF</strong> : null}
           {failed ? <small>Retry / إعادة المحاولة</small> : null}
         </span>
       )}
@@ -422,7 +448,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
         {loading ? (
           <div className="attachment-state">
             <LoaderCircle size={22} className="spin" />
-            <span>{ar ? "جاري تحميل الصور…" : "Loading images…"}</span>
+            <span>{ar ? "جاري تحميل المرفقات…" : "Loading attachments…"}</span>
           </div>
         ) : attachments.length === 0 ? (
           <div className="attachment-empty">
