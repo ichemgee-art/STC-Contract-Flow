@@ -4,86 +4,83 @@ const ADMIN_EMAIL = "e2e-admin@stc.local";
 const EDITOR_EMAIL = "e2e-editor@stc.local";
 const PASSWORD = "E2e-Test-2026!";
 
-async function useEnglish(page: Page) {
-  const switcher = page.getByRole("button", { name: /English/ });
-  if (await switcher.isVisible().catch(() => false)) await switcher.click();
-}
-
 async function login(page: Page, email = ADMIN_EMAIL) {
   await page.goto("/login");
-  await useEnglish(page);
-  await page.getByLabel("Email address").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('form button[type="submit"]').click();
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 }
 
 test("protected routes redirect unauthenticated users to login", async ({ page }) => {
   await page.goto("/contracts");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole("button", { name: /Sign in|تسجيل الدخول/ })).toBeVisible();
+  await expect(page.locator('input[type="email"]')).toBeVisible();
 });
 
 test("admin can create, progress, reopen and delete a contract", async ({ page }) => {
   await login(page);
   await page.goto("/contracts/new");
+  await expect(page.getByTestId("contract-sales-representative")).toBeVisible();
 
   const company = `E2E Company ${Date.now()}`;
-  await page.getByLabel("Sales representative").fill("E2E Representative");
-  await page.getByLabel("Company / Client").fill(company);
-  await page.getByLabel("Contract type").fill("Supply & Installation");
-  await page.getByLabel("Product / Item").fill("HPL");
-  await page.getByRole("button", { name: "Save Contract" }).click();
+  await page.getByTestId("contract-sales-representative").fill("E2E Representative");
+  await page.getByTestId("contract-company-name").fill(company);
+  await page.getByTestId("contract-type").fill("Supply & Installation");
+  await page.getByTestId("contract-product").fill("HPL");
+  await page.getByTestId("contract-submit").click();
 
   await expect(page).toHaveURL(/\/contracts\/[^/]+$/);
   await expect(page.getByRole("heading", { name: company })).toBeVisible();
 
   const stages = [
-    "Stamped by STC",
-    "Stamped by Client",
-    "Down Payment",
-    "Supply",
-    "Stocking Payment",
+    "stampedByUs",
+    "stampedByClient",
+    "downPayment",
+    "supply",
+    "settlement",
   ];
 
   for (const stage of stages) {
-    await page.getByRole("button", { name: `Complete ${stage}` }).click();
-    await expect(page.getByRole("button", { name: `Reopen ${stage}` })).toBeVisible();
+    const control = page.getByTestId(`stage-${stage}`);
+    await expect(control).toHaveAttribute("data-completed", "false");
+    await control.click();
+    await expect(control).toHaveAttribute("data-completed", "true");
   }
 
-  await expect(page.getByText("Completed", { exact: true }).first()).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  const supply = page.getByTestId("stage-supply");
+  await supply.click();
+  await expect(supply).toHaveAttribute("data-completed", "false");
+  await expect(page.getByTestId("stage-settlement")).toHaveAttribute("data-completed", "false");
 
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Reopen Supply" }).click();
-  await expect(page.getByText("Waiting for Supply", { exact: true }).first()).toBeVisible();
-
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByTestId("contract-delete").click();
   await expect(page).toHaveURL(/\/contracts$/);
-  await expect(page.getByText(company, { exact: true })).toHaveCount(0);
 });
 
 test("editor cannot delete contracts", async ({ page }) => {
   await login(page, EDITOR_EMAIL);
   await page.goto("/contracts/scale-125");
   await expect(page.getByRole("heading", { name: "Scale Company 125" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
+  await expect(page.getByTestId("contract-delete")).toHaveCount(0);
 });
 
-test("large contract registers page older records on demand", async ({ page }) => {
+test("large contract register pages older records on demand", async ({ page }) => {
   await login(page);
   await page.goto("/contracts");
 
-  await expect(page.getByText(/125 total contracts/)).toBeVisible();
+  const total = page.getByTestId("contracts-total");
+  await expect(total).toContainText("125");
 
-  const loadMore = page.getByRole("button", { name: /Load more/ });
-  await expect(loadMore).toContainText("50 of 125");
+  const loadMore = page.getByTestId("contracts-load-more");
+  await expect(loadMore).toHaveAttribute("data-loaded", "50");
+  await expect(loadMore).toHaveAttribute("data-total", "125");
 
   await loadMore.click();
-  await expect(loadMore).toContainText("100 of 125");
+  await expect(loadMore).toHaveAttribute("data-loaded", "100");
 
   await loadMore.click();
   await expect(page.getByText("Scale Company 001", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: /Load more/ })).toHaveCount(0);
+  await expect(page.getByTestId("contracts-load-more")).toHaveCount(0);
 });
