@@ -2740,3 +2740,27 @@ html[dir="rtl"] .attachment-share {
   border: 0;
   background: white;
 }
+
+
+/* Performance feedback */
+.sync-indicator {
+  width: fit-content;
+  margin-inline-start: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, .78);
+  font-size: 9.5px;
+  line-height: 1;
+}
+
+.contracts-load-more {
+  padding: 16px 12px 4px;
+  display: flex;
+  justify-content: center;
+}
+
+.contracts-load-more .button {
+  min-width: 210px;
+}
