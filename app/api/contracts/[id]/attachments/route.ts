@@ -213,6 +213,16 @@ export async function GET(
     const pathname = url.searchParams.get("pathname");
     const prefix = prefixFor(id);
 
+    if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true") {
+      if (pathname) {
+        return NextResponse.json({ error: "Attachment not found." }, { status: 404 });
+      }
+      return NextResponse.json(
+        { attachments: [] },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
     if (pathname) {
       if (!pathname.startsWith(prefix)) {
         return NextResponse.json({ error: "Invalid attachment path." }, { status: 400 });
