@@ -14,6 +14,7 @@ const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  "application/pdf",
 ]);
 
 function cleanFilename(name: string) {
@@ -34,6 +35,7 @@ function displayNameFromPath(pathname: string) {
 
 function inferContentType(pathname: string) {
   const lower = pathname.toLowerCase();
+  if (lower.endsWith(".pdf")) return "application/pdf";
   if (lower.endsWith(".png")) return "image/png";
   if (lower.endsWith(".webp")) return "image/webp";
   return "image/jpeg";
@@ -124,7 +126,7 @@ function webpDimensions(bytes: Uint8Array) {
   return null;
 }
 
-async function validateImageContent(file: File) {
+async function validateAttachmentContent(file: File) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   let detectedType = "";
   let dimensions: { width: number; height: number } | null = null;
@@ -145,7 +147,14 @@ async function validateImageContent(file: File) {
     && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF"
     && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
 
-  if (isJpeg) {
+  const isPdf =
+    bytes.length >= 8
+    && String.fromCharCode(...bytes.slice(0, 5)) === "%PDF-"
+    && new TextDecoder("latin1").decode(bytes.slice(Math.max(0, bytes.length - 4096))).includes("%%EOF");
+
+  if (isPdf) {
+    detectedType = "application/pdf";
+  } else if (isJpeg) {
     detectedType = "image/jpeg";
     dimensions = jpegDimensions(bytes);
   } else if (isPng) {
@@ -160,7 +169,15 @@ async function validateImageContent(file: File) {
     dimensions = webpDimensions(bytes);
   }
 
-  if (!detectedType || detectedType !== file.type || !dimensions) {
+  if (!detectedType || !ALLOWED_TYPES.has(detectedType)) {
+    return { ok: false as const, reason: "Invalid attachment content." };
+  }
+
+  if (detectedType === "application/pdf") {
+    return { ok: true as const, contentType: detectedType };
+  }
+
+  if (!dimensions) {
     return { ok: false as const, reason: "Invalid image content." };
   }
 
@@ -175,7 +192,7 @@ async function validateImageContent(file: File) {
     return { ok: false as const, reason: "Invalid image dimensions." };
   }
 
-  return { ok: true as const };
+  return { ok: true as const, contentType: detectedType };
 }
 
 function errorResponse(cause: unknown) {
@@ -288,7 +305,7 @@ export async function POST(
       return NextResponse.json({ error: "File is too large." }, { status: 413 });
     }
 
-    const validation = await validateImageContent(file);
+    const validation = await validateAttachmentContent(file);
     if (!validation.ok) {
       return NextResponse.json({ error: validation.reason }, { status: 415 });
     }
@@ -320,7 +337,7 @@ export async function POST(
     const blob = await put(pathname, file, {
       access: "private",
       addRandomSuffix: false,
-      contentType: file.type,
+      contentType: validation.contentType,
       abortSignal: signal,
     });
     uploadedPath = blob.pathname;
@@ -335,7 +352,7 @@ export async function POST(
         name: filename,
         size: file.size,
         uploadedAt: new Date().toISOString(),
-        contentType: file.type,
+        contentType: validation.contentType,
       },
     });
   } catch (cause) {

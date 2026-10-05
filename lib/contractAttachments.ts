@@ -18,6 +18,7 @@ export interface ContractAttachment {
 const TARGET_COMPRESSED_BYTES = 850_000;
 const MAX_COMPRESSED_BYTES = 1_200_000;
 const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
+const MAX_PDF_BYTES = 4 * 1024 * 1024;
 const UPLOAD_RETRY_DELAYS = [600, 1200, 2200] as const;
 const LIST_TIMEOUT_MS = 30_000;
 const UPLOAD_TIMEOUT_MS = 75_000;
@@ -198,8 +199,24 @@ async function responseError(response: Response) {
   }
 }
 
+function isPdfFile(file: File) {
+  return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+}
+
+async function prepareContractAttachment(source: File) {
+  if (isPdfFile(source)) {
+    if (source.size <= 0) throw new Error("The PDF file is empty.");
+    if (source.size > MAX_PDF_BYTES) throw new Error("PDF file is too large.");
+    return source.type === "application/pdf"
+      ? source
+      : new File([source], source.name, { type: "application/pdf", lastModified: source.lastModified });
+  }
+
+  return optimizeContractImage(source);
+}
+
 export async function addContractAttachment(contractId: string, source: File) {
-  const file = await optimizeContractImage(source);
+  const file = await prepareContractAttachment(source);
 
   for (let attempt = 0; attempt <= UPLOAD_RETRY_DELAYS.length; attempt += 1) {
     const headers = await authHeaders();

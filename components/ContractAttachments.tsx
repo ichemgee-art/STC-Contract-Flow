@@ -3,6 +3,7 @@
 import {
   CheckCircle2,
   Expand,
+  FileText,
   Image as ImageIcon,
   LoaderCircle,
   Plus,
@@ -31,6 +32,18 @@ function formatBytes(value: number) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function isPdfAttachment(attachment: Pick<ContractAttachment, "contentType" | "name">) {
+  return attachment.contentType === "application/pdf" || /\.pdf$/i.test(attachment.name);
+}
+
+function isSupportedUpload(file: File) {
+  return (
+    file.type === "application/pdf"
+    || /\.(pdf|jpe?g|png|webp|heic|heif)$/i.test(file.name)
+    || ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(file.type)
+  );
+}
+
 function AttachmentThumbnail({
   contractId,
   attachment,
@@ -42,6 +55,7 @@ function AttachmentThumbnail({
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const autoAttempted = useRef(false);
+  const isPdf = isPdfAttachment(attachment);
   const [src, setSrc] = useState("");
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -66,7 +80,7 @@ function AttachmentThumbnail({
 
   useEffect(() => {
     const element = buttonRef.current;
-    if (!element || src) return;
+    if (!element || src || isPdf) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -81,7 +95,7 @@ function AttachmentThumbnail({
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [load, src]);
+  }, [isPdf, load, src]);
 
   useEffect(() => {
     return () => {
@@ -149,7 +163,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
       setAttachments(next);
       if (!preserveError) setError("");
     } catch {
-      setError(ar ? "تعذر تحميل صور العقد." : "Could not load contract images.");
+      setError(ar ? "تعذر تحميل مرفقات العقد." : "Could not load contract attachments.");
     } finally {
       setLoading(false);
     }
@@ -166,21 +180,22 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
   async function uploadFiles(files: File[]) {
     if (busy || loading || files.length === 0) return;
 
-    const images = files.filter((file) =>
-      file.type.startsWith("image/")
-      || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name),
-    );
+    const supportedFiles = files.filter(isSupportedUpload);
 
-    if (!images.length) {
-      setError(ar ? "اختر صورًا فقط." : "Please choose image files only.");
+    if (!supportedFiles.length) {
+      setError(
+        ar
+          ? "اختر ملف PDF أو صورة JPG / JPEG / PNG / WebP."
+          : "Choose a PDF or JPG / JPEG / PNG / WebP file.",
+      );
       return;
     }
 
     const availableSlots = Math.max(0, MAX_ATTACHMENTS - attachments.length);
-    const selected = images.slice(0, availableSlots);
+    const selected = supportedFiles.slice(0, availableSlots);
 
     if (!selected.length) {
-      setError(ar ? "وصلت للحد الأقصى: 5 صور للعقد." : "Maximum reached: 5 images per contract.");
+      setError(ar ? "وصلت للحد الأقصى: 5 مرفقات للعقد." : "Maximum reached: 5 attachments per contract.");
       return;
     }
 
@@ -196,10 +211,15 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
       for (let index = 0; index < selected.length; index += 1) {
         const file = selected[index];
 
+        const pdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
         setProgress(
           ar
-            ? `جاري تحسين ورفع الصورة ${index + 1} من ${selected.length}`
-            : `Optimizing and uploading ${index + 1} of ${selected.length}`,
+            ? pdf
+              ? `جاري رفع ملف PDF ${index + 1} من ${selected.length}`
+              : `جاري تحسين ورفع الصورة ${index + 1} من ${selected.length}`
+            : pdf
+              ? `Uploading PDF ${index + 1} of ${selected.length}`
+              : `Optimizing and uploading image ${index + 1} of ${selected.length}`,
         );
 
         try {
@@ -209,16 +229,18 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
           const message = cause instanceof Error ? cause.message : "";
 
           if (/Maximum attachments/i.test(message)) {
-            failures.push(ar ? "تم الوصول للحد الأقصى 5 صور." : "The 5-image limit was reached.");
+            failures.push(ar ? "تم الوصول للحد الأقصى 5 مرفقات." : "The 5-attachment limit was reached.");
             break;
           }
 
-          if (/Source image is too large/i.test(message)) {
+          if (/PDF file is too large/i.test(message)) {
+            failures.push(ar ? `${file.name}: ملف PDF أكبر من 4MB.` : `${file.name}: PDF is larger than 4MB.`);
+          } else if (/Source image is too large/i.test(message)) {
             failures.push(ar ? `${file.name}: حجم الصورة الأصلية كبير جدًا.` : `${file.name}: source image is too large.`);
           } else if (/too large/i.test(message)) {
-            failures.push(ar ? `${file.name}: تعذر ضغط الصورة للحجم المسموح.` : `${file.name}: could not be compressed enough.`);
-          } else if (/Unsupported image|Only image/i.test(message)) {
-            failures.push(ar ? `${file.name}: صيغة الصورة غير مدعومة على هذا الجهاز.` : `${file.name}: image format is not supported on this device.`);
+            failures.push(ar ? `${file.name}: حجم الملف أكبر من المسموح.` : `${file.name}: file is too large.`);
+          } else if (/Unsupported image|Only image|Unsupported file|Invalid attachment/i.test(message)) {
+            failures.push(ar ? `${file.name}: صيغة الملف غير مدعومة.` : `${file.name}: file format is not supported.`);
           } else {
             failures.push(ar ? `${file.name}: فشل الرفع.` : `${file.name}: upload failed.`);
           }
@@ -230,22 +252,22 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
         setSuccess(
           ar
             ? uploaded === 1
-              ? "تم رفع صورة العقد بنجاح."
-              : `تم رفع ${uploaded} صور للعقد بنجاح.`
+              ? "تم رفع مرفق العقد بنجاح."
+              : `تم رفع ${uploaded} مرفقات للعقد بنجاح.`
             : uploaded === 1
-              ? "Contract image uploaded successfully."
-              : `${uploaded} contract images uploaded successfully.`,
+              ? "Contract attachment uploaded successfully."
+              : `${uploaded} contract attachments uploaded successfully.`,
         );
       }
 
-      const skippedForLimit = Math.max(0, images.length - selected.length);
+      const skippedForLimit = Math.max(0, supportedFiles.length - selected.length);
       const notices = [...failures];
 
       if (skippedForLimit > 0) {
         notices.push(
           ar
-            ? `تم تجاهل ${skippedForLimit} صورة لأن الحد الأقصى للعقد هو 5 صور.`
-            : `${skippedForLimit} image(s) were skipped because the contract limit is 5.`,
+            ? `تم تجاهل ${skippedForLimit} ملف لأن الحد الأقصى للعقد هو 5 مرفقات.`
+            : `${skippedForLimit} file(s) were skipped because the contract limit is 5 attachments.`,
         );
       }
 
@@ -281,7 +303,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
       await reload();
       playUiSound("reopen");
     } catch {
-      setError(ar ? "تعذر حذف الصورة." : "Could not delete the image.");
+      setError(ar ? "تعذر حذف المرفق." : "Could not delete the attachment.");
     } finally {
       setBusy(false);
     }
@@ -318,7 +340,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
-      setError(ar ? "تعذر تنزيل الصورة." : "Could not download the image.");
+      setError(ar ? "تعذر تنزيل المرفق." : "Could not download the attachment.");
     }
   }
 
@@ -347,7 +369,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
           ref={inputRef}
           className="attachment-input"
           type="file"
-          accept="image/*"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif"
           multiple
           onChange={(event) => void uploadFiles(Array.from(event.target.files ?? []))}
         />
@@ -385,7 +407,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
             onClick={() => inputRef.current?.click()}
           >
             <Plus size={17} />
-            {ar ? "إضافة صور" : "Add images"}
+            {ar ? "إضافة مرفقات" : "Add attachments"}
           </button>
         </div>
 
@@ -441,8 +463,8 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
                   className="attachment-share"
                   disabled={busy}
                   onClick={() => setShareTarget(attachment)}
-                  aria-label={ar ? "QR للصورة" : "Image QR"}
-                  title={ar ? "فتح QR للموبايل" : "Open QR for phone"}
+                  aria-label={ar ? "QR للمرفق" : "Attachment QR"}
+                  title={ar ? "فتح QR للموبايل" : "Open attachment QR for phone"}
                 >
                   <QrCode size={16} />
                 </button>
@@ -452,7 +474,7 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
                   className="attachment-delete"
                   disabled={busy}
                   onClick={() => void removeAttachment(attachment)}
-                  aria-label={ar ? "حذف الصورة" : "Delete image"}
+                  aria-label={ar ? "حذف المرفق" : "Delete attachment"}
                   title={ar ? "حذف" : "Delete"}
                 >
                   <Trash2 size={16} />
@@ -465,8 +487,12 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
       </section>
 
       {preview ? <ContractImageViewer
-        src={preview.url} name={preview.attachment.name} ar={ar}
-        onClose={closePreview} onDownload={() => void downloadAttachment(preview.attachment)}
+        src={preview.url}
+        name={preview.attachment.name}
+        contentType={preview.attachment.contentType}
+        ar={ar}
+        onClose={closePreview}
+        onDownload={() => void downloadAttachment(preview.attachment)}
       /> : null}
 
       {shareTarget ? (

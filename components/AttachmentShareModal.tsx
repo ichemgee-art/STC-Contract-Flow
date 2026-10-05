@@ -108,7 +108,7 @@ export function AttachmentShareModal({
             <span className="qr-share-icon"><Smartphone size={20} /></span>
             <div>
               <p className="eyebrow">{ar ? "مشاركة على الموبايل" : "Share to phone"}</p>
-              <h3>{ar ? "QR لصورة العقد" : "Contract image QR"}</h3>
+              <h3>{ar ? "QR لمرفق العقد" : "Contract attachment QR"}</h3>
             </div>
           </div>
           <button className="icon-button" onClick={onClose} aria-label={ar ? "إغلاق" : "Close"}>
@@ -147,7 +147,7 @@ export function AttachmentShareModal({
               <ShieldCheck size={18} />
               <div>
                 <strong>{ar ? "رابط مؤقت وآمن" : "Secure temporary link"}</strong>
-                <span>{ar ? "خاص بالصورة دي فقط وصالح 30 دقيقة." : "Only for this image and valid for 30 minutes."}</span>
+                <span>{ar ? "خاص بالمرفق ده فقط وصالح 30 دقيقة." : "Only for this attachment and valid for 30 minutes."}</span>
               </div>
             </div>
 
@@ -161,7 +161,7 @@ export function AttachmentShareModal({
             </div>
 
             <div className="qr-share-file">
-              <span>{ar ? "الصورة" : "Image"}</span>
+              <span>{ar ? "المرفق" : "Attachment"}</span>
               <strong title={attachment.name}>{attachment.name}</strong>
             </div>
 
@@ -198,15 +198,15 @@ export function AttachmentShareModal({
               {share && !expired ? (
                 <a className="button button-primary" href={share.downloadUrl}>
                   <Download size={17} />
-                  {ar ? "تحميل الصورة" : "Download image"}
+                  {ar ? "تحميل الملف" : "Download file"}
                 </a>
               ) : null}
             </div>
 
             <p className="qr-share-hint">
               {ar
-                ? "امسح الكود بكاميرا الموبايل. هتفتح صفحة فيها الصورة وزر تحميل مباشر."
-                : "Scan with your phone camera. The page opens with the image and a direct download button."}
+                ? "امسح الكود بكاميرا الموبايل. هتفتح صفحة فيها المرفق وزر تحميل مباشر."
+                : "Scan with your phone camera. The page opens with the attachment and a direct download button."}
             </p>
           </div>
         </div>
