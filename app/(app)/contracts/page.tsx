@@ -321,7 +321,7 @@ export default function ContractsPage() {
                     : `Load more (${visibleContracts.length} of ${filtered.length})`}
                 </button>
               </div>
-            ) : null}>
+            ) : null}
           </>
         )}
       </section>
