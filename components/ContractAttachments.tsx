@@ -3,6 +3,7 @@
 import {
   CheckCircle2,
   Expand,
+  FileText,
   Image as ImageIcon,
   LoaderCircle,
   Plus,
@@ -29,6 +30,18 @@ function formatBytes(value: number) {
   if (!value) return "0 KB";
   if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isPdfAttachment(attachment: Pick<ContractAttachment, "contentType" | "name">) {
+  return attachment.contentType === "application/pdf" || /\.pdf$/i.test(attachment.name);
+}
+
+function isSupportedUpload(file: File) {
+  return (
+    file.type === "application/pdf"
+    || /\.(pdf|jpe?g|png|webp|heic|heif)$/i.test(file.name)
+    || ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(file.type)
+  );
 }
 
 function AttachmentThumbnail({
