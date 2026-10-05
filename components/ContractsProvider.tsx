@@ -154,7 +154,6 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
   const recentRef = useRef<ContractRecord[]>([]);
   const olderRef = useRef<ContractRecord[]>([]);
   const tailCursorRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
-  const firstCursorIdRef = useRef<string | null>(null);
   const hasMoreRef = useRef(false);
   const loadingMoreRef = useRef(false);
   const totalCountRef = useRef(0);
@@ -266,7 +265,6 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
       recentRef.current = [];
       olderRef.current = [];
       tailCursorRef.current = null;
-      firstCursorIdRef.current = null;
       totalCountRef.current = 0;
       setRecentContracts([]);
       setOlderContracts([]);
@@ -302,24 +300,19 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
 
     return subscribeContracts(
       (page) => {
-        const previousCursorId = firstCursorIdRef.current;
-        const nextCursorId = page.cursor?.id ?? null;
-
         recentRef.current = page.contracts;
         setRecentContracts(page.contracts);
         memoryByUser.set(uid, page.contracts);
         writeSession(uid, page.contracts);
 
-        if (previousCursorId && previousCursorId !== nextCursorId) {
-          olderRef.current = [];
-          setOlderContracts([]);
-        }
-
-        if (!previousCursorId || previousCursorId !== nextCursorId || olderRef.current.length === 0) {
+        // Keep already loaded historical pages across realtime emissions.
+        // createdAt is immutable, so newly-created/deleted recent contracts can
+        // safely overlap with older pages; mergeUnique removes duplicates.
+        // Resetting the history here made large registers jump back to page 1.
+        if (olderRef.current.length === 0) {
           tailCursorRef.current = page.cursor;
         }
 
-        firstCursorIdRef.current = nextCursorId;
         const loaded = mergeUnique(page.contracts, olderRef.current).length;
         const countAllowsMore =
           totalCountRef.current === 0 || loaded < totalCountRef.current;
