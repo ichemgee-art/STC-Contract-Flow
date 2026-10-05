@@ -45,16 +45,16 @@ export async function renderPdfFirstPage(pdfBlob: Blob) {
   const loadingTask = pdfjs.getDocument({ data: bytes });
 
   try {
-    const document = await loadingTask.promise;
+    const pdfDocument = await loadingTask.promise;
     try {
-      const page = await document.getPage(1);
+      const page = await pdfDocument.getPage(1);
       try {
         const baseViewport = page.getViewport({ scale: 1 });
         const targetWidth = 1200;
         const scale = Math.min(2.5, Math.max(1, targetWidth / baseViewport.width));
         const viewport = page.getViewport({ scale });
 
-        const canvas = document.createElement("canvas");
+        const canvas = window.document.createElement("canvas");
         canvas.width = Math.max(1, Math.ceil(viewport.width));
         canvas.height = Math.max(1, Math.ceil(viewport.height));
 
@@ -74,7 +74,7 @@ export async function renderPdfFirstPage(pdfBlob: Blob) {
         page.cleanup();
       }
     } finally {
-      await document.destroy();
+      await pdfDocument.destroy();
     }
   } catch (error) {
     await loadingTask.destroy().catch(() => undefined);
