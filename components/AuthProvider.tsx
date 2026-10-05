@@ -66,12 +66,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return;
       }
+      const uid = nextUser.uid;
+      setProfile(null);
+
+      // Keep private cache cleanup off the critical render path.
+      void retainAttachmentUser(uid).catch(() => undefined);
 
       try {
-        await retainAttachmentUser(nextUser.uid);
-        setProfile(await loadProfile(nextUser.uid));
+        const nextProfile = await loadProfile(uid);
+        if (auth.currentUser?.uid === uid) setProfile(nextProfile);
       } finally {
-        setLoading(false);
+        if (auth.currentUser?.uid === uid) setLoading(false);
       }
     });
   }, []);
