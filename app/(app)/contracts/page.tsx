@@ -31,7 +31,18 @@ const statuses: ContractStatus[] = [
 
 export default function ContractsPage() {
   const { t, stageLabel, statusLabel, locale, dir, language } = useLanguage();
-  const { contracts, loading, syncing, error: loadError } = useContracts();
+  const {
+    contracts,
+    totalCount,
+    loading,
+    syncing,
+    loadingMore,
+    hasMore,
+    error: loadError,
+    loadMore,
+    ensureAllLoaded,
+    refreshContract,
+  } = useContracts();
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [status, setStatus] = useState<"all" | ContractStatus>("all");
@@ -58,9 +69,9 @@ export default function ContractsPage() {
   }
 
 
-  const filtered = useMemo(() => {
+  const filterContracts = (source: ContractRecord[]) => {
     const needle = deferredSearch.trim().toLowerCase();
-    return contracts.filter((contract) => {
+    return source.filter((contract) => {
       const matchesText =
         !needle ||
         [
@@ -74,9 +85,14 @@ export default function ContractsPage() {
       const matchesStatus = status === "all" || currentStatus === status;
       return matchesText && matchesStatus;
     });
-  }, [contracts, deferredSearch, status]);
+  };
 
-  const exportRows = useMemo(() => filtered.map((contract) => {
+  const filtered = useMemo(
+    () => filterContracts(contracts),
+    [contracts, deferredSearch, status],
+  );
+
+  const buildExportRows = (source: ContractRecord[]) => source.map((contract) => {
     const row: Record<string, string | number> = {
       [language === "ar" ? "الشركة" : "Company"]: contract.companyName,
       [language === "ar" ? "المندوب" : "Representative"]: contract.salesRepresentative,
@@ -93,24 +109,27 @@ export default function ContractsPage() {
     row[language === "ar" ? "نسبة الإنجاز" : "Progress"] = getProgress(contract.stages);
     row[language === "ar" ? "تاريخ الإنشاء" : "Created"] = dateText(contract);
     return row;
-  }), [filtered, language, locale, stageLabel, statusLabel, t]);
+  });
+
+  const exportRows = useMemo(
+    () => buildExportRows(filtered),
+    [filtered, language, locale, stageLabel, statusLabel, t],
+  );
 
   const activeFilterLabel =
     status === "all"
       ? t("allStatuses")
       : statusLabel(status);
 
-  const PAGE_SIZE = 50;
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [deferredSearch, status]);
+    if ((deferredSearch.trim() || status !== "all") && hasMore) {
+      void ensureAllLoaded();
+    }
+  }, [deferredSearch, ensureAllLoaded, hasMore, status]);
 
-  const visibleContracts = useMemo(
-    () => filtered.slice(0, visibleCount),
-    [filtered, visibleCount],
-  );
+  // Firestore pagination is the single source of pagination. The register renders
+  // exactly the records already loaded into the shared store.
+  const visibleContracts = filtered;
 
   const exportSheets = useMemo(() => [{
     name: language === "ar" ? "العقود" : "Contracts",
@@ -118,10 +137,10 @@ export default function ContractsPage() {
   }], [exportRows, language]);
 
   const exportKpis = useMemo(() => [
-    { label: language === "ar" ? "إجمالي العقود" : "Total Contracts", value: contracts.length },
+    { label: language === "ar" ? "إجمالي العقود" : "Total Contracts", value: totalCount || contracts.length },
     { label: language === "ar" ? "المعروض" : "Shown", value: filtered.length },
     { label: language === "ar" ? "الفلتر" : "Filter", value: activeFilterLabel },
-  ], [activeFilterLabel, contracts.length, filtered.length, language]);
+  ], [activeFilterLabel, contracts.length, filtered.length, language, totalCount]);
 
 
   async function toggle(contract: ContractRecord, key: StageKey) {
@@ -138,6 +157,7 @@ export default function ContractsPage() {
     setError("");
     try {
       await updateContractStage(contract, key, checked);
+      await refreshContract(contract.id);
       playUiSound(checked ? (key === "settlement" ? "completed" : "advance") : "reopen");
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : t("updateStageError"));
@@ -146,13 +166,46 @@ export default function ContractsPage() {
     }
   }
 
+  const canLoadMore =
+    hasMore
+    && (totalCount === 0 || contracts.length < totalCount);
+
+  async function showMoreContracts() {
+    if (!canLoadMore || loadingMore) return;
+    await loadMore();
+  }
+
+  async function prepareFullExport() {
+    const all = hasMore ? await ensureAllLoaded() : contracts;
+    const source = filterContracts(all);
+    const rows = buildExportRows(source);
+    return {
+      sheets: [{
+        name: language === "ar" ? "العقود" : "Contracts",
+        rows,
+      }],
+      kpis: [
+        { label: language === "ar" ? "إجمالي العقود" : "Total Contracts", value: totalCount || all.length },
+        { label: language === "ar" ? "المعروض" : "Shown", value: source.length },
+        { label: language === "ar" ? "الفلتر" : "Filter", value: activeFilterLabel },
+      ],
+      subtitle:
+        language === "ar"
+          ? `الفلتر: ${activeFilterLabel}${search ? ` · البحث: ${search}` : ""}`
+          : `Filter: ${activeFilterLabel}${search ? ` · Search: ${search}` : ""}`,
+    };
+  }
+
   return (
     <div className="page-stack">
       <section className="page-intro">
         <div>
           <p className="eyebrow">{t("contractRegister")}</p>
           <h2>{t("contractsHeadline")}</h2>
-          <p>{t("totalContractsShown", { total: contracts.length, shown: filtered.length })}</p>
+          <p data-testid="contracts-total">{t("totalContractsShown", {
+            total: totalCount || contracts.length,
+            shown: hasMore ? `${filtered.length}+` : filtered.length,
+          })}</p>
         </div>
         <ExportButtons
           filename={language === "ar" ? "STC-العقود-المفلترة" : "STC-Filtered-Contracts"}
@@ -164,6 +217,7 @@ export default function ContractsPage() {
           }
           sheets={exportSheets}
           kpis={exportKpis}
+          prepareExport={prepareFullExport}
           disabled={loading || filtered.length === 0}
           compact
         />
@@ -191,7 +245,11 @@ export default function ContractsPage() {
 
       {loadError && <div className="notice notice-error">{t("loadContractsError")}</div>}
       {error && <div className="notice notice-error">{error}</div>}
-      {syncing && !loading ? <div className="sync-indicator">{language === "ar" ? "جاري مزامنة أحدث البيانات…" : "Syncing latest data…"}</div> : null}
+      {(syncing || loadingMore) && !loading ? <div className="sync-indicator">
+        {language === "ar"
+          ? loadingMore ? "جاري تحميل عقود أقدم…" : "جاري مزامنة أحدث البيانات…"
+          : loadingMore ? "Loading older contracts…" : "Syncing latest data…"}
+      </div> : null}
 
       <section className="contracts-table-card card">
         {loading ? (
@@ -309,16 +367,22 @@ export default function ContractsPage() {
               ))}
             </div>
 
-            {visibleContracts.length < filtered.length ? (
+            {canLoadMore ? (
               <div className="contracts-load-more">
                 <button
                   type="button"
+                  data-testid="contracts-load-more"
+                  data-loaded={visibleContracts.length}
+                  data-total={totalCount || filtered.length}
                   className="button button-secondary"
-                  onClick={() => setVisibleCount((current) => current + PAGE_SIZE)}
+                  onClick={() => void showMoreContracts()}
+                  disabled={loadingMore}
                 >
-                  {language === "ar"
-                    ? `عرض المزيد (${visibleContracts.length} من ${filtered.length})`
-                    : `Load more (${visibleContracts.length} of ${filtered.length})`}
+                  {loadingMore
+                    ? (language === "ar" ? "جاري التحميل…" : "Loading…")
+                    : language === "ar"
+                      ? `عرض المزيد (${visibleContracts.length} من ${totalCount || filtered.length})`
+                      : `Load more (${visibleContracts.length} of ${totalCount || filtered.length})`}
                 </button>
               </div>
             ) : null}

@@ -307,17 +307,20 @@ const LanguageContext = createContext<LanguageContextValue | undefined>(undefine
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>("ar");
+  const [preferencesRestored, setPreferencesRestored] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("stc-language");
     if (saved === "ar" || saved === "en") setLanguage(saved);
+    setPreferencesRestored(true);
   }, []);
 
   useEffect(() => {
+    if (!preferencesRestored) return;
     window.localStorage.setItem("stc-language", language);
     document.documentElement.lang = language;
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
-  }, [language]);
+  }, [language, preferencesRestored]);
 
   const value = useMemo<LanguageContextValue>(() => {
     const dictionary = language === "ar" ? ar : en;

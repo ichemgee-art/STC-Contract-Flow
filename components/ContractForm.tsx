@@ -75,6 +75,7 @@ export function ContractForm({
         <label className="field">
           <span>{t("salesRepresentative")}</span>
           <input
+            data-testid="contract-sales-representative"
             value={value.salesRepresentative}
             onChange={(event) => update("salesRepresentative", event.target.value)}
             placeholder={t("salesRepresentativePlaceholder")}
@@ -87,6 +88,7 @@ export function ContractForm({
         <label className="field">
           <span>{t("companyClient")}</span>
           <input
+            data-testid="contract-company-name"
             value={value.companyName}
             onChange={(event) => update("companyName", event.target.value)}
             placeholder={t("companyPlaceholder")}
@@ -99,6 +101,7 @@ export function ContractForm({
         <label className="field">
           <span>{t("contractType")}</span>
           <input
+            data-testid="contract-type"
             value={value.contractType}
             onChange={(event) => update("contractType", event.target.value)}
             placeholder={t("contractTypePlaceholder")}
@@ -112,6 +115,7 @@ export function ContractForm({
         <label className="field">
           <span>{t("productItem")}</span>
           <input
+            data-testid="contract-product"
             value={value.product}
             onChange={(event) => update("product", event.target.value)}
             placeholder={t("productPlaceholder")}
@@ -127,7 +131,7 @@ export function ContractForm({
 
       <div className="form-actions">
         {cancelControl}
-        <button className="button button-primary" type="submit" disabled={busy}>
+        <button data-testid="contract-submit" className="button button-primary" type="submit" disabled={busy}>
           <Save size={16} /> {busy ? t("saving") : submitLabel ?? t("saveContract")}
         </button>
       </div>

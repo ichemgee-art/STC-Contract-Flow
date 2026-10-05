@@ -13,6 +13,7 @@ export function ExportButtons({
   kpis = [],
   disabled = false,
   compact = false,
+  prepareExport,
 }: {
   filename: string;
   title: string;
@@ -21,6 +22,11 @@ export function ExportButtons({
   kpis?: ExportKpi[];
   disabled?: boolean;
   compact?: boolean;
+  prepareExport?: () => Promise<{
+    sheets?: ExportSheet[];
+    kpis?: ExportKpi[];
+    subtitle?: string;
+  }>;
 }) {
   const { language, dir } = useLanguage();
   const [busy, setBusy] = useState<"" | "excel" | "pdf">("");
@@ -30,13 +36,14 @@ export function ExportButtons({
     setBusy("excel");
     setError("");
     try {
+      const prepared = prepareExport ? await prepareExport() : null;
       const { exportExcel } = await import("@/lib/exporters");
       await exportExcel({
         filename,
         title,
-        subtitle,
-        sheets,
-        kpis,
+        subtitle: prepared?.subtitle ?? subtitle,
+        sheets: prepared?.sheets ?? sheets,
+        kpis: prepared?.kpis ?? kpis,
         rightToLeft: dir === "rtl",
       });
     } catch (cause) {
@@ -56,13 +63,14 @@ export function ExportButtons({
     setBusy("pdf");
     setError("");
     try {
+      const prepared = prepareExport ? await prepareExport() : null;
       const { exportPdf } = await import("@/lib/exporters");
       await exportPdf({
         filename,
         title,
-        subtitle,
-        sheets,
-        kpis,
+        subtitle: prepared?.subtitle ?? subtitle,
+        sheets: prepared?.sheets ?? sheets,
+        kpis: prepared?.kpis ?? kpis,
         language,
       });
     } catch (cause) {

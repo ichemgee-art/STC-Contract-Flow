@@ -2,16 +2,20 @@ import {
   addDoc,
   collection,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
+  startAfter,
   updateDoc,
   type DocumentData,
   type DocumentSnapshot,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { clearAttachmentCaches } from "@/lib/attachmentCache";
@@ -26,6 +30,15 @@ import {
 } from "@/types/contract";
 
 const contractsRef = collection(db, "contracts");
+
+export const CONTRACT_REALTIME_WINDOW = 50;
+export const CONTRACT_PAGE_SIZE = 50;
+
+export interface ContractPage {
+  contracts: ContractRecord[];
+  cursor: QueryDocumentSnapshot<DocumentData> | null;
+  hasMore: boolean;
+}
 
 function fromSnapshot(snapshot: DocumentSnapshot<DocumentData>): ContractRecord {
   const data = snapshot.data();
@@ -47,15 +60,56 @@ function fromSnapshot(snapshot: DocumentSnapshot<DocumentData>): ContractRecord 
 }
 
 export function subscribeContracts(
-  onData: (contracts: ContractRecord[]) => void,
+  onData: (page: ContractPage) => void,
   onError?: (error: Error) => void,
+  windowSize = CONTRACT_REALTIME_WINDOW,
 ) {
-  const contractsQuery = query(contractsRef, orderBy("createdAt", "desc"));
+  const contractsQuery = query(
+    contractsRef,
+    orderBy("createdAt", "desc"),
+    limit(windowSize),
+  );
+
   return onSnapshot(
     contractsQuery,
-    (snapshot) => onData(snapshot.docs.map(fromSnapshot)),
+    (snapshot) => {
+      onData({
+        contracts: snapshot.docs.map(fromSnapshot),
+        cursor: snapshot.docs.at(-1) ?? null,
+        hasMore: snapshot.size === windowSize,
+      });
+    },
     (error) => onError?.(error),
   );
+}
+
+export async function loadOlderContracts(
+  cursor: QueryDocumentSnapshot<DocumentData> | null,
+  pageSize = CONTRACT_PAGE_SIZE,
+): Promise<ContractPage> {
+  if (!cursor) {
+    return { contracts: [], cursor: null, hasMore: false };
+  }
+
+  const snapshot = await getDocs(
+    query(
+      contractsRef,
+      orderBy("createdAt", "desc"),
+      startAfter(cursor),
+      limit(pageSize),
+    ),
+  );
+
+  return {
+    contracts: snapshot.docs.map(fromSnapshot),
+    cursor: snapshot.docs.at(-1) ?? null,
+    hasMore: snapshot.size === pageSize,
+  };
+}
+
+export async function getContractCount() {
+  const snapshot = await getCountFromServer(contractsRef);
+  return snapshot.data().count;
 }
 
 export function subscribeContract(

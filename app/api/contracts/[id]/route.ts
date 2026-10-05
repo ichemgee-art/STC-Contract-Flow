@@ -18,8 +18,13 @@ async function deleteFirestoreContract(contractId: string, token: string) {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   if (!projectId) throw new Error("Firebase project ID is not configured.");
 
+  const baseUrl =
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true"
+      ? `http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents`
+      : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+
   return fetch(
-    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/contracts/${encodeURIComponent(contractId)}`,
+    `${baseUrl}/contracts/${encodeURIComponent(contractId)}`,
     {
       method: "DELETE",
       headers: {
@@ -74,11 +79,14 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const blobs = await list({
-      prefix: contractPrefix(id),
-      limit: 100,
-      abortSignal: AbortSignal.timeout(30_000),
-    });
+    const emulatorMode = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true";
+    const blobs = emulatorMode
+      ? { blobs: [] as Array<{ pathname: string }> }
+      : await list({
+          prefix: contractPrefix(id),
+          limit: 100,
+          abortSignal: AbortSignal.timeout(30_000),
+        });
 
     const deletion = await deleteFirestoreContract(id, token);
     if (!deletion.ok) {

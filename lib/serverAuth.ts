@@ -27,8 +27,13 @@ async function firestoreGet(path: string, token: string) {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   if (!projectId) throw new Error("Firebase project ID is not configured.");
 
+  const baseUrl =
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true"
+      ? `http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents`
+      : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+
   const response = await fetch(
-    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`,
+    `${baseUrl}/${path}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
