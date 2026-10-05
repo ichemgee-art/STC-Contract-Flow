@@ -57,6 +57,8 @@ function AttachmentThumbnail({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const autoAttempted = useRef(false);
   const isPdf = isPdfAttachment(attachment);
+  const fileUrlRef = useRef("");
+  const previewUrlRef = useRef("");
   const [fileSrc, setFileSrc] = useState("");
   const [previewSrc, setPreviewSrc] = useState("");
   const [loading, setLoading] = useState(false);
@@ -82,6 +84,8 @@ function AttachmentThumbnail({
         throw new Error("Could not render PDF preview.");
       }
 
+      fileUrlRef.current = nextFileSrc;
+      previewUrlRef.current = nextPreviewSrc;
       setFileSrc(nextFileSrc);
       setPreviewSrc(nextPreviewSrc);
       return nextFileSrc;
@@ -114,10 +118,13 @@ function AttachmentThumbnail({
 
   useEffect(() => {
     return () => {
-      if (fileSrc) URL.revokeObjectURL(fileSrc);
-      if (previewSrc && previewSrc !== fileSrc) URL.revokeObjectURL(previewSrc);
+      const fileUrl = fileUrlRef.current;
+      const previewUrl = previewUrlRef.current;
+
+      if (fileUrl) URL.revokeObjectURL(fileUrl);
+      if (previewUrl && previewUrl !== fileUrl) URL.revokeObjectURL(previewUrl);
     };
-  }, [fileSrc, previewSrc]);
+  }, []);
 
   return (
     <button
@@ -141,7 +148,7 @@ function AttachmentThumbnail({
         <img
           src={previewSrc}
           alt={isPdf ? `${attachment.name} — page 1` : attachment.name}
-          loading="lazy"
+          loading="eager"
         />
       ) : (
         <span className={isPdf ? "attachment-pdf-placeholder" : "attachment-image-placeholder"}>
