@@ -14,7 +14,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useContracts } from "@/components/ContractsProvider";
 import { ExportButtons } from "@/components/ExportButtons";
 import { SmartLink } from "@/components/SmartLink";
@@ -51,8 +51,23 @@ function daysSince(value: ContractRecord["updatedAt"], nowMs: number) {
 
 export default function DashboardPage() {
   const { t, stageLabel, statusLabel, locale, language } = useLanguage();
-  const { contracts, loading, syncing, error } = useContracts();
+  const {
+    contracts,
+    totalCount,
+    loading,
+    syncing,
+    loadingMore,
+    hasMore,
+    error,
+    ensureAllLoaded,
+  } = useContracts();
   const [period, setPeriod] = useState<DashboardPeriod>("all");
+
+  useEffect(() => {
+    if (!loading && hasMore) {
+      void ensureAllLoaded();
+    }
+  }, [ensureAllLoaded, hasMore, loading]);
 
   function formatDate(contract: ContractRecord) {
     if (!contract.createdAt) return t("justNow");
@@ -356,9 +371,15 @@ export default function DashboardPage() {
       </section>
 
       {error && <div className="notice notice-error">{t("loadContractsError")}</div>}
-      {syncing && !loading ? (
+      {(syncing || loadingMore) && !loading ? (
         <div className="sync-indicator">
-          {language === "ar" ? "جاري مزامنة أحدث البيانات…" : "Syncing latest data…"}
+          {language === "ar"
+            ? loadingMore
+              ? `جاري تجهيز التحليلات… ${contracts.length} / ${totalCount || "…"}`
+              : "جاري مزامنة أحدث البيانات…"
+            : loadingMore
+              ? `Preparing analytics… ${contracts.length} / ${totalCount || "…"}`
+              : "Syncing latest data…"}
         </div>
       ) : null}
 
