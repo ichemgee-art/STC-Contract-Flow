@@ -386,8 +386,8 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
             <h3>{ar ? "مستندات العقد" : "Contract document viewer"}</h3>
             <p>
               {ar
-                ? "احتفظ بصور العقد داخل نفس السجل. الصور خاصة ولا تُفتح إلا لمستخدم مسجل ومفعّل."
-                : "Keep contract images in the same record. Files stay private and require an active signed-in user."}
+                ? "احتفظ بصور العقد وملفات PDF داخل نفس السجل. المرفقات خاصة ولا تُفتح إلا لمستخدم مسجل ومفعّل."
+                : "Keep contract images and PDFs in the same record. Attachments stay private and require an active signed-in user."}
             </p>
           </div>
 
@@ -424,13 +424,13 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
               {busy
                 ? progress
                 : ar
-                  ? "اسحب صور العقد هنا أو اختر من الجهاز"
-                  : "Drop contract images here or choose from your device"}
+                  ? "اسحب مرفقات العقد هنا أو اختر من الجهاز"
+                  : "Drop contract attachments here or choose from your device"}
             </strong>
             <span>
               {ar
-                ? "صور الموبايل وJPG/PNG · تحسين تلقائي مع الحفاظ على وضوح الكتابة"
-                : "Mobile photos and JPG/PNG · automatic optimization while keeping text readable"}
+                ? "PDF · JPG/JPEG · PNG · WebP · صور الموبايل — الصور يتم تحسينها تلقائيًا"
+                : "PDF · JPG/JPEG · PNG · WebP · mobile photos — images are optimized automatically"}
             </span>
           </div>
           <button
@@ -460,8 +460,8 @@ export function ContractAttachments({ contractId }: { contractId: string }) {
         ) : attachments.length === 0 ? (
           <div className="attachment-empty">
             <ImageIcon size={23} />
-            <strong>{ar ? "لا توجد صور لهذا العقد بعد" : "No images for this contract yet"}</strong>
-            <span>{ar ? "أول صورة تضيفها ستظهر هنا." : "The first image you add will appear here."}</span>
+            <strong>{ar ? "لا توجد مرفقات لهذا العقد بعد" : "No attachments for this contract yet"}</strong>
+            <span>{ar ? "أول صورة أو PDF تضيفه سيظهر هنا." : "The first image or PDF you add will appear here."}</span>
           </div>
         ) : (
           <div className="contract-document-layout">
