@@ -1,4 +1,4 @@
-import { Clock3, Download, ShieldCheck } from "lucide-react";
+import { Clock3, Download, ExternalLink, FileText, ShieldCheck } from "lucide-react";
 import { verifyAttachmentShareToken } from "@/lib/attachmentShare";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +27,9 @@ export default async function AttachmentSharePage({
   }
 
   const encodedToken = encodeURIComponent(token);
-  const imageUrl = `/api/share/attachment/${encodedToken}`;
-  const downloadUrl = `${imageUrl}?download=1`;
+  const fileUrl = `/api/share/attachment/${encodedToken}`;
+  const downloadUrl = `${fileUrl}?download=1`;
+  const isPdf = /\.pdf$/i.test(payload.name) || /\.pdf$/i.test(payload.pathname);
   const expiresAt = new Intl.DateTimeFormat("ar-EG", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -43,7 +44,7 @@ export default async function AttachmentSharePage({
             <div className="share-brand">STC</div>
             <div>
               <p className="eyebrow">STC CONTRACT FLOW</p>
-              <h1>صورة عقد</h1>
+              <h1>مرفق عقد</h1>
             </div>
           </div>
           <span className="share-secure-badge">
@@ -56,13 +57,24 @@ export default async function AttachmentSharePage({
           <Clock3 size={17} />
           <div>
             <strong>صالح حتى {expiresAt}</strong>
-            <span>بعد الموعد ده الرابط والصورة مش هيفتحوا من الـQR.</span>
+            <span>بعد الموعد ده الرابط والمرفق مش هيفتحوا من الـQR.</span>
           </div>
         </div>
 
-        <div className="share-image-shell">
-          <img src={imageUrl} alt={payload.name} />
-        </div>
+        {isPdf ? (
+          <div className="share-pdf-shell">
+            <iframe src={fileUrl} title={payload.name} />
+            <a className="share-open-file" href={fileUrl} target="_blank" rel="noreferrer">
+              <FileText size={18} />
+              فتح ملف PDF
+              <ExternalLink size={15} />
+            </a>
+          </div>
+        ) : (
+          <div className="share-image-shell">
+            <img src={fileUrl} alt={payload.name} />
+          </div>
+        )}
 
         <div className="share-file-name" title={payload.name}>
           {payload.name}
@@ -70,11 +82,11 @@ export default async function AttachmentSharePage({
 
         <a className="share-download-button" href={downloadUrl}>
           <Download size={19} />
-          تحميل الصورة على الموبايل
+          تحميل الملف على الموبايل
         </a>
 
         <p className="share-footer-note">
-          Specialized Trading & Construction · الرابط مخصص لمشاركة هذه الصورة فقط.
+          Specialized Trading & Construction · الرابط مخصص لمشاركة هذا المرفق فقط.
         </p>
       </section>
     </main>
