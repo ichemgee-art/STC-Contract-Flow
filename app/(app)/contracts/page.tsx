@@ -121,20 +121,15 @@ export default function ContractsPage() {
       ? t("allStatuses")
       : statusLabel(status);
 
-  const PAGE_SIZE = 50;
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
     if ((deferredSearch.trim() || status !== "all") && hasMore) {
       void ensureAllLoaded();
     }
   }, [deferredSearch, ensureAllLoaded, hasMore, status]);
 
-  const visibleContracts = useMemo(
-    () => filtered.slice(0, visibleCount),
-    [filtered, visibleCount],
-  );
+  // Firestore pagination is the single source of pagination. The register renders
+  // exactly the records already loaded into the shared store.
+  const visibleContracts = filtered;
 
   const exportSheets = useMemo(() => [{
     name: language === "ar" ? "العقود" : "Contracts",
@@ -172,25 +167,12 @@ export default function ContractsPage() {
   }
 
   const canLoadMore =
-    visibleContracts.length < filtered.length
-    || (
-      hasMore
-      && (totalCount === 0 || contracts.length < totalCount)
-    );
+    hasMore
+    && (totalCount === 0 || contracts.length < totalCount);
 
   async function showMoreContracts() {
-    if (visibleCount < filtered.length) {
-      setVisibleCount((current) => current + PAGE_SIZE);
-      return;
-    }
-
-    if (
-      !hasMore
-      || (totalCount > 0 && contracts.length >= totalCount)
-    ) return;
-
+    if (!canLoadMore || loadingMore) return;
     await loadMore();
-    setVisibleCount((current) => current + PAGE_SIZE);
   }
 
   async function prepareFullExport() {
