@@ -208,10 +208,7 @@ export async function deleteContract(id: string) {
 }
 
 
-export async function getContractSummary() {
-  const snapshot = await getDocs(query(contractsRef, orderBy("createdAt", "desc")));
-  const contracts = snapshot.docs.map(fromSnapshot);
-
+export function summarizeContracts(contracts: ContractRecord[]) {
   const summary = {
     total: contracts.length,
     waitingStc: 0,
@@ -233,4 +230,9 @@ export async function getContractSummary() {
   }
 
   return summary;
+}
+
+export async function getContractSummary() {
+  const snapshot = await getDocs(query(contractsRef, orderBy("createdAt", "desc")));
+  return summarizeContracts(snapshot.docs.map(fromSnapshot));
 }
