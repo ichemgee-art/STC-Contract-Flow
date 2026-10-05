@@ -171,13 +171,24 @@ export default function ContractsPage() {
     }
   }
 
+  const canLoadMore =
+    visibleContracts.length < filtered.length
+    || (
+      hasMore
+      && (totalCount === 0 || contracts.length < totalCount)
+    );
+
   async function showMoreContracts() {
     if (visibleCount < filtered.length) {
       setVisibleCount((current) => current + PAGE_SIZE);
       return;
     }
 
-    if (!hasMore) return;
+    if (
+      !hasMore
+      || (totalCount > 0 && contracts.length >= totalCount)
+    ) return;
+
     await loadMore();
     setVisibleCount((current) => current + PAGE_SIZE);
   }
@@ -374,7 +385,7 @@ export default function ContractsPage() {
               ))}
             </div>
 
-            {(visibleContracts.length < filtered.length || hasMore) ? (
+            {canLoadMore ? (
               <div className="contracts-load-more">
                 <button
                   type="button"
