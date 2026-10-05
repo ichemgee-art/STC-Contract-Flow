@@ -43,6 +43,8 @@ export function StageChecklist({
             <div className="stage-index">{index + 1}</div>
             <button
               type="button"
+              data-testid={"stage-" + stage.key}
+              data-completed={checked ? "true" : "false"}
               className={checked ? "stage-check checked" : "stage-check"}
               disabled={!canCheck || Boolean(busyStage)}
               onClick={() => onToggle(stage.key, !checked)}
