@@ -121,6 +121,7 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
     if (authLoading) return;
 
     if (!uid || !profile?.active) {
+      if (!uid) clearContractSessionCache();
       setContracts([]);
       setLoading(false);
       setSyncing(false);
