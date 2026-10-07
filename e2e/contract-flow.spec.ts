@@ -30,6 +30,7 @@ test("admin can create, progress, reopen and delete a contract", async ({ page }
   await page.getByTestId("contract-product").fill("HPL");
   await page.getByTestId("contract-submit").click();
 
+  await expect(page.getByTestId("contract-created-celebration")).toBeVisible();
   await expect(page).toHaveURL(/\/contracts\/[^/]+$/);
   await expect(page.getByRole("heading", { name: company })).toBeVisible();
 
@@ -56,6 +57,9 @@ test("admin can create, progress, reopen and delete a contract", async ({ page }
     await control.click();
     await expect(control).toHaveAttribute("data-completed", "true");
   }
+
+  await expect(page.getByTestId("contract-complete-celebration")).toBeVisible();
+  await expect(page.getByTestId("contract-complete-celebration")).toBeHidden();
 
   page.once("dialog", (dialog) => dialog.accept());
   const supply = page.getByTestId("stage-supply");
