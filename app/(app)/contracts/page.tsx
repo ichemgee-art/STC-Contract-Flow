@@ -8,6 +8,7 @@ import { ExportButtons } from "@/components/ExportButtons";
 import { useLanguage } from "@/components/LanguageProvider";
 import { SmartLink } from "@/components/SmartLink";
 import { StatusBadge } from "@/components/StatusBadge";
+import { SuccessCelebration } from "@/components/SuccessCelebration";
 import { assignMissingContractNumbers, updateContractStage } from "@/lib/contracts";
 import { playUiSound, primeUiAudio } from "@/lib/sounds";
 import {
@@ -59,6 +60,7 @@ export default function ContractsPage() {
   const [numberingLegacy, setNumberingLegacy] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [showCompletionCelebration, setShowCompletionCelebration] = useState(false);
 
   function dateText(contract: ContractRecord) {
     return contract.createdAt
@@ -251,7 +253,12 @@ export default function ContractsPage() {
     try {
       await updateContractStage(contract, key, checked);
       await refreshContract(contract.id);
-      playUiSound(checked ? (key === "settlement" ? "completed" : "advance") : "reopen");
+      if (checked && key === "settlement") {
+        playUiSound("completed");
+        setShowCompletionCelebration(true);
+      } else {
+        playUiSound(checked ? "advance" : "reopen");
+      }
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : t("updateStageError"));
     } finally {
@@ -290,7 +297,19 @@ export default function ContractsPage() {
   }
 
   return (
-    <div className="page-stack">
+    <>
+      <SuccessCelebration
+        open={showCompletionCelebration}
+        celebrate
+        title={language === "ar" ? "تم اكتمال العقد" : "Contract Completed"}
+        subtitle={
+          language === "ar"
+            ? "تم إنهاء جميع مراحل العقد بنجاح"
+            : "All contract stages were completed successfully"
+        }
+        onComplete={() => setShowCompletionCelebration(false)}
+      />
+      <div className="page-stack">
       <section className="page-intro">
         <div>
           <p className="eyebrow">{t("contractRegister")}</p>
@@ -561,6 +580,7 @@ export default function ContractsPage() {
           </>
         )}
       </section>
-    </div>
+      </div>
+    </>
   );
 }
