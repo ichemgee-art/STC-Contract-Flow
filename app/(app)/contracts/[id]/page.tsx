@@ -12,6 +12,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { ContractAttachments } from "@/components/ContractAttachments";
+import { ContractNotes } from "@/components/ContractNotes";
+import { ContractReportButton } from "@/components/ContractReportButton";
 import { useContracts } from "@/components/ContractsProvider";
 import { ContractForm } from "@/components/ContractForm";
 import { ExportButtons } from "@/components/ExportButtons";
@@ -191,7 +193,8 @@ export default function ContractDetailsPage() {
     {
       name: language === "ar" ? "بيانات العقد" : "Contract Details",
       rows: [{
-        [language === "ar" ? "رقم العقد" : "Contract ID"]: contract.id,
+        [language === "ar" ? "رقم العقد" : "Contract Number"]: contract.contractNumber || contract.id,
+        [language === "ar" ? "المعرف الداخلي" : "Internal ID"]: contract.id,
         [language === "ar" ? "الشركة" : "Company"]: contract.companyName,
         [language === "ar" ? "المندوب" : "Representative"]: contract.salesRepresentative,
         [language === "ar" ? "نوع العقد" : "Contract Type"]: contract.contractType,
@@ -245,6 +248,7 @@ export default function ContractDetailsPage() {
             sheets={exportSheets}
             kpis={exportKpis}
             compact
+            showPdf={false}
           />
         </section>
         <ContractForm
@@ -265,7 +269,9 @@ export default function ContractDetailsPage() {
       <section className="contract-detail-hero card">
         <div>
           <div className="detail-title-line">
-            <p className="eyebrow">{t("contractRecord")}</p>
+            <p className="eyebrow" data-testid="contract-number">
+              {contract.contractNumber || t("contractRecord")}
+            </p>
             <StatusBadge stages={contract.stages} />
           </div>
           <h2>{contract.companyName}</h2>
@@ -284,14 +290,16 @@ export default function ContractDetailsPage() {
         </div>
       </section>
 
-      <div className="page-export-row">
+      <div className="page-export-row contract-export-actions">
+        <ContractReportButton contract={contract} />
         <ExportButtons
-          filename={`STC-${contract.companyName}-Contract`}
+          filename={`STC-${contract.contractNumber || contract.companyName}-Contract`}
           title={language === "ar" ? `تقرير عقد - ${contract.companyName}` : `Contract Report - ${contract.companyName}`}
-          subtitle={language === "ar" ? "تقرير تفصيلي لمسار العقد" : "Detailed contract workflow report"}
+          subtitle={language === "ar" ? "بيانات العقد بصيغة Excel" : "Contract data in Excel format"}
           sheets={exportSheets}
           kpis={exportKpis}
           compact
+          showPdf={false}
         />
       </div>
 
@@ -325,6 +333,8 @@ export default function ContractDetailsPage() {
 
       <ContractAttachments contractId={contract.id} />
 
+      <ContractNotes contractId={contract.id} />
+
       <section className="detail-grid">
         <article className="workflow-card card">
           <div className="section-heading">
@@ -346,7 +356,11 @@ export default function ContractDetailsPage() {
           </div>
 
           <dl className="record-list">
-            <div><dt>{t("contractId")}</dt><dd dir="ltr">{contract.id}</dd></div>
+            <div>
+              <dt>{language === "ar" ? "رقم العقد" : "Contract Number"}</dt>
+              <dd dir="ltr">{contract.contractNumber || "—"}</dd>
+            </div>
+            <div><dt>{language === "ar" ? "المعرف الداخلي" : "Internal ID"}</dt><dd dir="ltr">{contract.id}</dd></div>
             <div><dt>{t("createdBy")}</dt><dd>{contract.createdByName || t("stcUser")}</dd></div>
             <div><dt>{t("createdAt")}</dt><dd>{formatDate(contract.createdAt)}</dd></div>
             <div><dt>{t("lastUpdated")}</dt><dd>{formatDate(contract.updatedAt)}</dd></div>
