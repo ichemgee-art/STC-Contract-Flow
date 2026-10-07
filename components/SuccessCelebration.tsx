@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 type SuccessCelebrationProps = {
   open: boolean;
@@ -37,16 +37,19 @@ export function SuccessCelebration({
   duration,
   onComplete,
 }: SuccessCelebrationProps) {
+  const completeRef = useRef(onComplete);
+  completeRef.current = onComplete;
+
   useEffect(() => {
     if (!open) return;
 
     const timeout = window.setTimeout(
-      () => onComplete?.(),
+      () => completeRef.current?.(),
       duration ?? (celebrate ? 2500 : 1650),
     );
 
     return () => window.clearTimeout(timeout);
-  }, [celebrate, duration, onComplete, open]);
+  }, [celebrate, duration, open]);
 
   if (!open) return null;
 
