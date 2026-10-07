@@ -16,6 +16,7 @@ import {
   type DocumentData,
   type DocumentSnapshot,
   type QueryDocumentSnapshot,
+  type Transaction,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { clearAttachmentCaches } from "@/lib/attachmentCache";
@@ -132,7 +133,7 @@ function formatContractNumber(year: number, sequence: number) {
 }
 
 async function allocateContractNumber(
-  transaction: Parameters<Parameters<typeof runTransaction>[1]>[0],
+  transaction: Transaction,
   year: number,
 ) {
   const counterRef = doc(db, "contractCounters", String(year));
