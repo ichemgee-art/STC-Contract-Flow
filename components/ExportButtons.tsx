@@ -13,6 +13,8 @@ export function ExportButtons({
   kpis = [],
   disabled = false,
   compact = false,
+  showExcel = true,
+  showPdf = true,
   prepareExport,
 }: {
   filename: string;
@@ -22,6 +24,8 @@ export function ExportButtons({
   kpis?: ExportKpi[];
   disabled?: boolean;
   compact?: boolean;
+  showExcel?: boolean;
+  showPdf?: boolean;
   prepareExport?: () => Promise<{
     sheets?: ExportSheet[];
     kpis?: ExportKpi[];
@@ -93,7 +97,7 @@ export function ExportButtons({
           <Download size={15} />
           {language === "ar" ? "تصدير" : "Export"}
         </span>
-        <button
+        {showExcel ? <button
           type="button"
           className="export-button excel"
           onClick={() => void runExcel()}
@@ -101,8 +105,8 @@ export function ExportButtons({
         >
           <FileSpreadsheet size={16} />
           {busy === "excel" ? "..." : "Excel"}
-        </button>
-        <button
+        </button> : null}
+        {showPdf ? <button
           type="button"
           className="export-button pdf"
           onClick={() => void runPdf()}
@@ -110,7 +114,7 @@ export function ExportButtons({
         >
           <FileText size={16} />
           {busy === "pdf" ? "..." : "PDF"}
-        </button>
+        </button> : null}
       </div>
       {error ? <span className="export-suite-error">{error}</span> : null}
     </div>
