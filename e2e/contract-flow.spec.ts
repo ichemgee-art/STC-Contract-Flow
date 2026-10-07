@@ -67,8 +67,10 @@ test("admin can create, progress, reopen and delete a contract", async ({ page }
   await expect(supply).toHaveAttribute("data-completed", "false");
   await expect(page.getByTestId("stage-settlement")).toHaveAttribute("data-completed", "false");
 
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByTestId("contract-delete").click();
+  await expect(page.getByTestId("delete-contract-modal")).toBeVisible();
+  await expect(page.getByTestId("delete-contract-modal")).toContainText(company);
+  await page.getByTestId("delete-contract-confirm").click();
   await expect(page).toHaveURL(/\/contracts$/);
 });
 
