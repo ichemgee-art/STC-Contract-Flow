@@ -22,17 +22,20 @@ type SoundKind = "created" | "advance" | "completed" | "reopen" | "reminder";
 
 const patterns: Record<SoundKind, Array<{ frequency: number; offset: number; duration: number; gain: number }>> = {
   created: [
-    { frequency: 523.25, offset: 0, duration: 0.12, gain: 0.12 },
-    { frequency: 659.25, offset: 0.12, duration: 0.14, gain: 0.13 },
+    { frequency: 523.25, offset: 0, duration: 0.11, gain: 0.09 },
+    { frequency: 659.25, offset: 0.09, duration: 0.13, gain: 0.1 },
+    { frequency: 783.99, offset: 0.19, duration: 0.18, gain: 0.085 },
   ],
   advance: [
     { frequency: 659.25, offset: 0, duration: 0.11, gain: 0.1 },
     { frequency: 783.99, offset: 0.1, duration: 0.11, gain: 0.1 },
   ],
   completed: [
-    { frequency: 523.25, offset: 0, duration: 0.11, gain: 0.1 },
-    { frequency: 659.25, offset: 0.1, duration: 0.11, gain: 0.11 },
-    { frequency: 783.99, offset: 0.2, duration: 0.16, gain: 0.12 },
+    { frequency: 523.25, offset: 0, duration: 0.1, gain: 0.085 },
+    { frequency: 659.25, offset: 0.08, duration: 0.11, gain: 0.09 },
+    { frequency: 783.99, offset: 0.16, duration: 0.12, gain: 0.095 },
+    { frequency: 987.77, offset: 0.27, duration: 0.16, gain: 0.1 },
+    { frequency: 1174.66, offset: 0.4, duration: 0.22, gain: 0.075 },
   ],
   reopen: [
     { frequency: 523.25, offset: 0, duration: 0.11, gain: 0.08 },
