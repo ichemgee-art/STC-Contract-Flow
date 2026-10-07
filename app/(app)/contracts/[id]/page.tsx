@@ -20,6 +20,7 @@ import { ExportButtons } from "@/components/ExportButtons";
 import { useLanguage } from "@/components/LanguageProvider";
 import { StageChecklist } from "@/components/StageChecklist";
 import { StatusBadge } from "@/components/StatusBadge";
+import { SuccessCelebration } from "@/components/SuccessCelebration";
 import {
   deleteContract,
   getContract as fetchContract,
@@ -58,6 +59,7 @@ export default function ContractDetailsPage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showCompletionCelebration, setShowCompletionCelebration] = useState(false);
 
   function formatDate(value: ContractRecord["createdAt"]) {
     return value
@@ -133,7 +135,12 @@ export default function ContractDetailsPage() {
       } else {
         setFallbackContract(await fetchContract(contract.id));
       }
-      playUiSound(checked ? (stage === "settlement" ? "completed" : "advance") : "reopen");
+      if (checked && stage === "settlement") {
+        playUiSound("completed");
+        setShowCompletionCelebration(true);
+      } else {
+        playUiSound(checked ? "advance" : "reopen");
+      }
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : t("updateStageError"));
     } finally {
@@ -265,7 +272,19 @@ export default function ContractDetailsPage() {
   }
 
   return (
-    <div className="page-stack">
+    <>
+      <SuccessCelebration
+        open={showCompletionCelebration}
+        celebrate
+        title={language === "ar" ? "تم اكتمال العقد" : "Contract Completed"}
+        subtitle={
+          language === "ar"
+            ? "تم إنهاء جميع مراحل العقد بنجاح"
+            : "All contract stages were completed successfully"
+        }
+        onComplete={() => setShowCompletionCelebration(false)}
+      />
+      <div className="page-stack">
       <section className="contract-detail-hero card">
         <div>
           <div className="detail-title-line">
@@ -369,6 +388,7 @@ export default function ContractDetailsPage() {
           <div className="record-note">{t("stageDatesNote")}</div>
         </aside>
       </section>
-    </div>
+      </div>
+    </>
   );
 }
