@@ -58,7 +58,9 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
   if (loading || !user) {
     return (
       <div className="screen-loader">
-        <div className="loader-mark">STC</div>
+        <div className="loader-mark">
+          <img src="/stc-logo.png" alt="STC" />
+        </div>
         <div className="loader-line" />
         <p>{t("loadingFlow")}</p>
       </div>
@@ -90,7 +92,9 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
   const nav = (
     <>
       <div className="brand-lockup">
-        <div className="brand-monogram" aria-hidden="true">STC</div>
+        <div className="brand-logo-image" aria-hidden="true">
+          <img src="/stc-logo.png" alt="" />
+        </div>
         <div>
           <strong>Contract Flow</strong>
           <span>{t("companyNameFull")}</span>
