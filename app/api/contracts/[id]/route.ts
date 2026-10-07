@@ -14,17 +14,18 @@ function contractPrefix(contractId: string) {
   return `contracts/${contractId}/`;
 }
 
-async function deleteFirestoreContract(contractId: string, token: string) {
+function firestoreBaseUrl() {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   if (!projectId) throw new Error("Firebase project ID is not configured.");
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true"
-      ? `http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents`
-      : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+  return process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true"
+    ? `http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents`
+    : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+}
 
+async function deleteFirestoreContract(contractId: string, token: string) {
   return fetch(
-    `${baseUrl}/contracts/${encodeURIComponent(contractId)}`,
+    `${firestoreBaseUrl()}/contracts/${encodeURIComponent(contractId)}`,
     {
       method: "DELETE",
       headers: {
@@ -33,6 +34,50 @@ async function deleteFirestoreContract(contractId: string, token: string) {
       cache: "no-store",
     },
   );
+}
+
+async function cleanupContractNotes(contractId: string, token: string) {
+  const baseUrl = firestoreBaseUrl();
+  let pageToken = "";
+
+  do {
+    const suffix = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
+    const response = await fetch(
+      `${baseUrl}/contracts/${encodeURIComponent(contractId)}/notes?pageSize=100${suffix}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      },
+    );
+
+    if (response.status === 404) return;
+    if (!response.ok) throw new Error("Could not list contract notes.");
+
+    const payload = (await response.json()) as {
+      documents?: Array<{ name?: string }>;
+      nextPageToken?: string;
+    };
+
+    for (const document of payload.documents ?? []) {
+      const noteId = document.name?.split("/").at(-1);
+      if (!noteId) continue;
+
+      const deletion = await fetch(
+        `${baseUrl}/contracts/${encodeURIComponent(contractId)}/notes/${encodeURIComponent(noteId)}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        },
+      );
+
+      if (!deletion.ok && deletion.status !== 404) {
+        throw new Error("Could not delete contract note.");
+      }
+    }
+
+    pageToken = payload.nextPageToken ?? "";
+  } while (pageToken);
 }
 
 async function cleanupBlobs(pathnames: string[]) {
@@ -87,6 +132,8 @@ export async function DELETE(
           limit: 100,
           abortSignal: AbortSignal.timeout(30_000),
         });
+
+    await cleanupContractNotes(id, token);
 
     const deletion = await deleteFirestoreContract(id, token);
     if (!deletion.ok) {
