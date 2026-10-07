@@ -16,6 +16,7 @@ import { ContractNotes } from "@/components/ContractNotes";
 import { ContractReportButton } from "@/components/ContractReportButton";
 import { useContracts } from "@/components/ContractsProvider";
 import { ContractForm } from "@/components/ContractForm";
+import { DeleteContractModal } from "@/components/DeleteContractModal";
 import { ExportButtons } from "@/components/ExportButtons";
 import { useLanguage } from "@/components/LanguageProvider";
 import { StageChecklist } from "@/components/StageChecklist";
@@ -60,6 +61,8 @@ export default function ContractDetailsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showCompletionCelebration, setShowCompletionCelebration] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   function formatDate(value: ContractRecord["createdAt"]) {
     return value
@@ -168,16 +171,18 @@ export default function ContractDetailsPage() {
   }
 
   async function remove() {
-    if (!contract || profile?.role !== "admin") return;
-    const message = t("deleteConfirmPrefix") + " " + contract.companyName + t("deleteConfirmSuffix");
-    if (!window.confirm(message)) return;
+    if (!contract || profile?.role !== "admin" || deleting) return;
 
+    setDeleting(true);
+    setError("");
     try {
       await deleteContract(contract.id);
       removeContractLocal(contract.id);
+      setShowDeleteModal(false);
       router.replace("/contracts");
     } catch {
       setError(t("deleteContractError"));
+      setDeleting(false);
     }
   }
 
@@ -273,6 +278,17 @@ export default function ContractDetailsPage() {
 
   return (
     <>
+      <DeleteContractModal
+        open={showDeleteModal}
+        companyName={contract.companyName}
+        contractNumber={contract.contractNumber}
+        busy={deleting}
+        language={language}
+        onCancel={() => {
+          if (!deleting) setShowDeleteModal(false);
+        }}
+        onConfirm={() => void remove()}
+      />
       <SuccessCelebration
         open={showCompletionCelebration}
         celebrate
@@ -302,7 +318,11 @@ export default function ContractDetailsPage() {
             <Edit3 size={16} /> {t("edit")}
           </button>
           {profile?.role === "admin" && (
-            <button data-testid="contract-delete" className="button button-danger" onClick={remove}>
+            <button
+              data-testid="contract-delete"
+              className="button button-danger"
+              onClick={() => setShowDeleteModal(true)}
+            >
               <Trash2 size={16} /> {t("delete")}
             </button>
           )}
