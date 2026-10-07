@@ -65,8 +65,54 @@ service cloud.firestore {
         && (data.stages.settlement == (data.stageDates.settlement != null));
     }
 
+    function hasContractIdentifier(data) {
+      return data.keys().hasAll([
+        "contractNumber",
+        "contractYear",
+        "contractSequence"
+      ]);
+    }
+
+    function validContractIdentifier(data) {
+      return !hasContractIdentifier(data)
+        || (
+          data.contractNumber is string
+          && data.contractNumber.matches("^STC-[0-9]{4}-[0-9]{4,}$")
+          && data.contractYear is int
+          && data.contractYear >= 2020
+          && data.contractYear <= 2100
+          && data.contractSequence is int
+          && data.contractSequence >= 1
+        );
+    }
+
+    function identifierTransition(oldData, newData) {
+      let oldHas = hasContractIdentifier(oldData);
+      let newHas = hasContractIdentifier(newData);
+
+      return (
+          !oldHas
+          && !newHas
+        )
+        || (
+          !oldHas
+          && newHas
+          && validContractIdentifier(newData)
+        )
+        || (
+          oldHas
+          && newHas
+          && newData.contractNumber == oldData.contractNumber
+          && newData.contractYear == oldData.contractYear
+          && newData.contractSequence == oldData.contractSequence
+        );
+    }
+
     function validContract(data) {
       return data.keys().hasOnly([
+          "contractNumber",
+          "contractYear",
+          "contractSequence",
           "salesRepresentative",
           "companyName",
           "contractType",
@@ -96,6 +142,7 @@ service cloud.firestore {
         && data.createdByName.size() <= 100
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
+        && validContractIdentifier(data)
         && validStages(data)
         && validDates(data);
     }
@@ -281,6 +328,7 @@ service cloud.firestore {
       allow read: if activeMember();
 
       allow create: if activeMember()
+        && hasContractIdentifier(request.resource.data)
         && validContract(request.resource.data)
         && pristineWorkflow(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
@@ -294,9 +342,56 @@ service cloud.firestore {
         && request.resource.data.createdByName == resource.data.createdByName
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time
+        && identifierTransition(resource.data, request.resource.data)
         && validStageTransitions(resource.data, request.resource.data);
 
       allow delete: if admin();
+
+      match /notes/{noteId} {
+        allow read: if activeMember();
+
+        allow create: if activeMember()
+          && request.resource.data.keys().hasOnly([
+            "text",
+            "createdAt",
+            "createdBy",
+            "createdByName"
+          ])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() >= 1
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdByName == get(memberPath()).data.displayName;
+
+        allow update: if false;
+
+        allow delete: if activeMember()
+          && (
+            admin()
+            || resource.data.createdBy == request.auth.uid
+          );
+      }
+    }
+
+    match /contractCounters/{counterId} {
+      allow read: if activeMember();
+
+      allow create: if activeMember()
+        && request.resource.data.keys().hasOnly(["year", "value", "updatedAt"])
+        && request.resource.data.year is int
+        && request.resource.data.year >= 2020
+        && request.resource.data.year <= 2100
+        && request.resource.data.value == 1
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if activeMember()
+        && request.resource.data.keys().hasOnly(["year", "value", "updatedAt"])
+        && request.resource.data.year == resource.data.year
+        && request.resource.data.value == resource.data.value + 1
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
     }
   }
 }
