@@ -16,6 +16,7 @@ import {
   type DocumentData,
   type DocumentSnapshot,
   type QueryDocumentSnapshot,
+  type Transaction,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { clearAttachmentCaches } from "@/lib/attachmentCache";
@@ -46,6 +47,9 @@ function fromSnapshot(snapshot: DocumentSnapshot<DocumentData>): ContractRecord 
 
   return {
     id: snapshot.id,
+    contractNumber: data.contractNumber ?? undefined,
+    contractYear: typeof data.contractYear === "number" ? data.contractYear : undefined,
+    contractSequence: typeof data.contractSequence === "number" ? data.contractSequence : undefined,
     salesRepresentative: data.salesRepresentative ?? "",
     companyName: data.companyName ?? "",
     contractType: data.contractType ?? "",
@@ -124,22 +128,59 @@ export function subscribeContract(
   );
 }
 
+function formatContractNumber(year: number, sequence: number) {
+  return `STC-${year}-${String(sequence).padStart(4, "0")}`;
+}
+
+async function allocateContractNumber(
+  transaction: Transaction,
+  year: number,
+) {
+  const counterRef = doc(db, "contractCounters", String(year));
+  const counterSnapshot = await transaction.get(counterRef);
+  const current = counterSnapshot.exists()
+    ? Number(counterSnapshot.data().value ?? 0)
+    : 0;
+  const next = current + 1;
+
+  transaction.set(counterRef, {
+    year,
+    value: next,
+    updatedAt: serverTimestamp(),
+  });
+
+  return {
+    contractNumber: formatContractNumber(year, next),
+    contractYear: year,
+    contractSequence: next,
+  };
+}
+
 export async function createContract(
   input: ContractInput,
   user: { uid: string; displayName: string },
 ) {
   const stages = Object.fromEntries(STAGE_KEYS.map((key) => [key, false])) as ContractStages;
   const stageDates = Object.fromEntries(STAGE_KEYS.map((key) => [key, null]));
+  const contractRef = doc(contractsRef);
+  const year = new Date().getFullYear();
 
-  return addDoc(contractsRef, {
-    ...input,
-    stages,
-    stageDates,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    createdBy: user.uid,
-    createdByName: user.displayName,
+  await runTransaction(db, async (transaction) => {
+    const identifier = await allocateContractNumber(transaction, year);
+
+    transaction.set(contractRef, {
+      ...input,
+      ...identifier,
+      stages,
+      stageDates,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      createdBy: user.uid,
+      createdByName: user.displayName,
+    });
   });
+
+  return contractRef;
 }
 
 export async function getContract(id: string) {
@@ -289,4 +330,46 @@ export function summarizeContracts(contracts: ContractRecord[]) {
 export async function getContractSummary() {
   const snapshot = await getDocs(query(contractsRef, orderBy("createdAt", "desc")));
   return summarizeContracts(snapshot.docs.map(fromSnapshot));
+}
+
+
+export async function assignMissingContractNumbers(contracts: ContractRecord[]) {
+  const missing = contracts
+    .filter((contract) => !contract.contractNumber)
+    .sort(
+      (a, b) =>
+        (a.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER)
+        - (b.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER),
+    );
+
+  let assigned = 0;
+
+  for (const contract of missing) {
+    const contractRef = doc(db, "contracts", contract.id);
+
+    const changed = await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(contractRef);
+      if (!snapshot.exists()) return false;
+
+      const data = snapshot.data();
+      if (data.contractNumber) return false;
+
+      const createdAt = data.createdAt;
+      const year =
+        createdAt && typeof createdAt.toDate === "function"
+          ? createdAt.toDate().getFullYear()
+          : new Date().getFullYear();
+      const identifier = await allocateContractNumber(transaction, year);
+
+      transaction.update(contractRef, {
+        ...identifier,
+        updatedAt: serverTimestamp(),
+      });
+      return true;
+    });
+
+    if (changed) assigned += 1;
+  }
+
+  return assigned;
 }

@@ -37,6 +37,7 @@ export default async function globalSetup() {
 
   const db = getFirestore();
   const batchSize = 125;
+  const year = new Date().getFullYear();
   const base = Date.now() - batchSize * 60_000;
 
   const writer = db.bulkWriter();
@@ -44,6 +45,9 @@ export default async function globalSetup() {
     const createdAt = Timestamp.fromMillis(base + index * 60_000);
     const id = `scale-${String(index + 1).padStart(3, "0")}`;
     writer.set(db.doc(`contracts/${id}`), {
+      contractNumber: `STC-${year}-${String(index + 1).padStart(4, "0")}`,
+      contractYear: year,
+      contractSequence: index + 1,
       salesRepresentative: index % 2 ? "Scale Rep A" : "Scale Rep B",
       companyName: `Scale Company ${String(index + 1).padStart(3, "0")}`,
       contractType: "Supply",
@@ -68,6 +72,11 @@ export default async function globalSetup() {
       createdByName: "E2E Seed",
     });
   }
+  writer.set(db.doc(`contractCounters/${year}`), {
+    year,
+    value: batchSize,
+    updatedAt: Timestamp.now(),
+  });
   await writer.close();
 
   // Make sure emulator writes are visible before the browser starts.

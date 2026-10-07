@@ -27,6 +27,9 @@ export type ContractStageDates = Record<StageKey, Timestamp | null>;
 
 export interface ContractRecord {
   id: string;
+  contractNumber?: string;
+  contractYear?: number;
+  contractSequence?: number;
   salesRepresentative: string;
   companyName: string;
   contractType: string;
@@ -72,4 +75,13 @@ export function canCompleteStage(stages: ContractStages, stage: StageKey) {
   const index = STAGE_KEYS.indexOf(stage);
   if (index <= 0) return true;
   return STAGE_KEYS.slice(0, index).every((key) => stages[key]);
+}
+
+
+export interface ContractNote {
+  id: string;
+  text: string;
+  createdAt: Timestamp | null;
+  createdBy: string;
+  createdByName: string;
 }
