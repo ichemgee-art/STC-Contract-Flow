@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { ContractForm } from "@/components/ContractForm";
+import { SuccessCelebration } from "@/components/SuccessCelebration";
 import { useContracts } from "@/components/ContractsProvider";
 import { useLanguage } from "@/components/LanguageProvider";
 import { createContract } from "@/lib/contracts";
@@ -13,10 +14,11 @@ import type { ContractInput } from "@/types/contract";
 export default function NewContractPage() {
   const { user, profile } = useAuth();
   const { refreshCount } = useContracts();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [createdContractId, setCreatedContractId] = useState("");
 
   async function submit(input: ContractInput) {
     if (!user || !profile?.active) return;
@@ -31,7 +33,7 @@ export default function NewContractPage() {
       });
       void refreshCount();
       playUiSound("created");
-      router.push("/contracts/" + reference.id);
+      setCreatedContractId(reference.id);
     } catch {
       setError(t("createContractError"));
       setBusy(false);
@@ -39,7 +41,20 @@ export default function NewContractPage() {
   }
 
   return (
-    <div className="page-stack form-page">
+    <>
+      <SuccessCelebration
+        open={Boolean(createdContractId)}
+        title={language === "ar" ? "تم إضافة العقد" : "Contract Added"}
+        subtitle={
+          language === "ar"
+            ? "تم حفظ العقد بنجاح"
+            : "The contract was saved successfully"
+        }
+        onComplete={() => {
+          if (createdContractId) router.push("/contracts/" + createdContractId);
+        }}
+      />
+      <div className="page-stack form-page">
       <section className="page-intro">
         <div>
           <p className="eyebrow">{t("newRecord")}</p>
@@ -48,6 +63,7 @@ export default function NewContractPage() {
         </div>
       </section>
       <ContractForm onSubmit={submit} busy={busy} error={error} />
-    </div>
+      </div>
+    </>
   );
 }
