@@ -358,6 +358,8 @@ export async function exportPdf({
     minute: "2-digit",
   });
 
+  const logoUrl = new URL("/stc-logo.png", window.location.origin).href;
+
   const maxColumns = validSheets.reduce(
     (max, sheet) => Math.max(max, Object.keys(sheet.rows[0] || {}).length),
     0,
@@ -425,19 +427,23 @@ html, body {
 body { font-variant-numeric: tabular-nums; }
 .print-root { width: 100%; }
 .header {
-  min-height: 82px; display: flex; align-items: center; justify-content: space-between;
-  gap: 18px; margin-bottom: 9px; padding: 15px 18px; border-radius: 9px;
+  min-height: 82px; position: relative; display: flex; align-items: center;
+  gap: 18px; margin-bottom: 9px; padding: 15px 18px 15px 96px; border-radius: 9px;
   background: #253A55 !important; color: #fff !important;
 }
 .header-copy { display: grid; gap: 3px; }
+.header-logo {
+  position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
+  width: 60px; height: 52px; display: grid; place-items: center;
+  padding: 4px; border-radius: 9px; background: #fff !important;
+}
+.header-logo img {
+  display: block; max-width: 100%; max-height: 100%; object-fit: contain;
+}
 .header .eyebrow { color: #F3B820 !important; font-size: 7px; font-weight: 800; letter-spacing: .7px; }
 .header h1 { margin: 0; color: #fff !important; font-size: 18px; }
 .header p { margin: 0; color: rgba(255,255,255,.76) !important; font-size: 7.5px; }
-.brand-mark {
-  width: 52px; height: 52px; display: grid; place-items: center;
-  border: 1px solid rgba(255,255,255,.18); border-radius: 13px;
-  color: #F3B820; font-size: 16px; font-weight: 900;
-}
+
 .kpis {
   display: grid; grid-template-columns: repeat(${Math.min(Math.max(kpis.length, 1), 6)}, minmax(0,1fr));
   gap: 7px; margin-bottom: 10px;
@@ -495,12 +501,14 @@ td.tone-danger { background: #FDECEC !important; color: #D64545 !important; font
 <body>
 <main class="print-root">
   <header class="header">
+    <div class="header-logo">
+      <img src="${escapeHtml(logoUrl)}" alt="STC" />
+    </div>
     <div class="header-copy">
       <span class="eyebrow">SPECIALIZED TRADING & CONSTRUCTION</span>
       <h1>${escapeHtml(title)}</h1>
       <p>${escapeHtml(subtitle)} · ${escapeHtml(generatedAt)}</p>
     </div>
-    <div class="brand-mark">STC</div>
   </header>
   ${kpiHtml}
   ${sections}
