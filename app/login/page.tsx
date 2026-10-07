@@ -65,7 +65,9 @@ export default function LoginPage() {
       <section className="login-brand-panel">
         <div className="login-brand-content">
           <div className="brand-lockup login-brand-lockup">
-            <div className="brand-monogram light" aria-hidden="true">STC</div>
+            <div className="brand-logo-image light" aria-hidden="true">
+              <img src="/stc-logo.png" alt="" />
+            </div>
             <div>
               <strong>Contract Flow</strong>
               <span>{t("companyNameFull")}</span>
@@ -88,7 +90,9 @@ export default function LoginPage() {
       <section className="login-form-panel">
         <form className="login-card" onSubmit={submit}>
           <div className="login-mobile-brand">
-            <div className="brand-monogram">STC</div>
+            <div className="brand-logo-image">
+              <img src="/stc-logo.png" alt="" />
+            </div>
             <strong>Contract Flow</strong>
           </div>
 
