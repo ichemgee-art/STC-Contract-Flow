@@ -33,6 +33,15 @@ test("admin can create, progress, reopen and delete a contract", async ({ page }
   await expect(page).toHaveURL(/\/contracts\/[^/]+$/);
   await expect(page.getByRole("heading", { name: company })).toBeVisible();
 
+  const expectedNumber = `STC-${new Date().getFullYear()}-0126`;
+  await expect(page.getByTestId("contract-number")).toHaveText(expectedNumber);
+  await expect(page.getByTestId("contract-report-pdf")).toBeVisible();
+
+  const noteText = "E2E follow-up note";
+  await page.getByTestId("contract-note-input").fill(noteText);
+  await page.getByTestId("contract-note-submit").click();
+  await expect(page.getByTestId("contract-note-list")).toContainText(noteText);
+
   const stages = [
     "stampedByUs",
     "stampedByClient",
@@ -83,4 +92,19 @@ test("large contract register pages older records on demand", async ({ page }) =
   await loadMore.click();
   await expect(page.getByText("Scale Company 001", { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId("contracts-load-more")).toHaveCount(0);
+});
+
+
+test("advanced search finds an older contract by contract number", async ({ page }) => {
+  await login(page);
+  await page.goto("/contracts");
+
+  await page.getByTestId("advanced-search-toggle").click();
+  await expect(page.getByTestId("advanced-search-panel")).toBeVisible();
+
+  const contractNumber = `STC-${new Date().getFullYear()}-0001`;
+  await page.getByTestId("filter-contract-number").fill(contractNumber);
+
+  await expect(page.getByText("Scale Company 001", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Scale Company 125", { exact: true })).toHaveCount(0);
 });
