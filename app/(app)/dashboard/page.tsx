@@ -61,12 +61,29 @@ export default function DashboardPage() {
     ensureAllLoaded,
   } = useContracts();
   const [period, setPeriod] = useState<DashboardPeriod>("all");
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  // Idle-day indicators and calendar boundaries change even without Firestore writes.
+  useEffect(() => {
+    const refreshClock = () => setNowMs(Date.now());
+    const interval = window.setInterval(refreshClock, 10 * 60_000);
+    document.addEventListener("visibilitychange", refreshClock);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshClock);
+    };
+  }, []);
+
+  const analyticsComplete =
+    !loading && !syncing && !loadingMore && !hasMore && !error
+    && (totalCount === 0 || contracts.length >= totalCount);
 
   useEffect(() => {
-    if (!loading && hasMore) {
-      void ensureAllLoaded();
+    if (!loading && !error && hasMore) {
+      // Pagination errors are recorded in ContractsProvider; never render partial KPIs.
+      void ensureAllLoaded().catch(() => undefined);
     }
-  }, [ensureAllLoaded, hasMore, loading]);
+  }, [ensureAllLoaded, error, hasMore, loading]);
 
   function formatDate(contract: ContractRecord) {
     if (!contract.createdAt) return t("justNow");
@@ -91,14 +108,14 @@ export default function DashboardPage() {
   }, [language, period]);
 
   const scopedContracts = useMemo(() => {
-    const start = startOfPeriod(period, new Date());
+    const start = startOfPeriod(period, new Date(nowMs));
     if (!start) return contracts;
     const startMs = start.getTime();
     return contracts.filter((contract) => {
       const created = contract.createdAt?.toMillis();
       return created != null && created >= startMs;
     });
-  }, [contracts, period]);
+  }, [contracts, period, nowMs]);
 
   const stats = useMemo(() => {
     let completed = 0;
@@ -122,7 +139,6 @@ export default function DashboardPage() {
   }, [scopedContracts]);
 
   const attention = useMemo(() => {
-    const nowMs = Date.now();
     return scopedContracts
       .filter((contract) => getContractStatus(contract.stages) !== "Completed")
       .map((contract) => ({
@@ -131,7 +147,7 @@ export default function DashboardPage() {
       }))
       .filter((item) => item.idleDays >= 7)
       .toSorted((a, b) => b.idleDays - a.idleDays);
-  }, [scopedContracts]);
+  }, [scopedContracts, nowMs]);
 
   const criticalAttention = useMemo(
     () => attention.filter((item) => item.idleDays >= 14),
@@ -206,7 +222,7 @@ export default function DashboardPage() {
   }, [language, scopedContracts]);
 
   const monthlyTrend = useMemo(() => {
-    const now = new Date();
+    const now = new Date(nowMs);
     const months = Array.from({ length: 6 }, (_, offset) => {
       const date = new Date(now.getFullYear(), now.getMonth() - (5 - offset), 1);
       return {
@@ -247,7 +263,7 @@ export default function DashboardPage() {
       createdHeight: Math.max(item.created ? 8 : 2, Math.round((item.created / max) * 100)),
       completedHeight: Math.max(item.completed ? 8 : 2, Math.round((item.completed / max) * 100)),
     }));
-  }, [contracts, locale]);
+  }, [contracts, locale, nowMs]);
 
   const exportSheets = useMemo(() => [{
     name: language === "ar" ? "العقود" : "Contracts",
@@ -303,6 +319,36 @@ export default function DashboardPage() {
       value: stats.completion + "%",
     },
   ], [attention.length, language, stats, t]);
+
+  // Never describe a subset as the complete company dashboard or export it.
+  if (!analyticsComplete) {
+    return (
+      <div className="page-stack">
+        <section className="card" role="status" aria-live="polite" style={{ padding: "28px" }}>
+          <p className="eyebrow">{language === "ar" ? "حالة البيانات" : "Data status"}</p>
+          <h2 style={{ color: "var(--navy-950)", margin: "8px 0" }}>
+            {error
+              ? (language === "ar" ? "تعذر تحميل كل العقود" : "Could not load all contracts")
+              : (language === "ar" ? "جاري تجهيز التحليلات الكاملة" : "Preparing complete analytics")}
+          </h2>
+          <p className="muted">
+            {error
+              ? (language === "ar"
+                ? "لن يتم عرض أرقام أو تصدير تقارير ناقصة. حاول إعادة التحميل."
+                : "Incomplete figures and reports are disabled. Please retry.")
+              : (language === "ar"
+                ? "تم تحميل " + contracts.length + " من " + (totalCount || "…") + " عقد."
+                : "Loaded " + contracts.length + " of " + (totalCount || "…") + " contracts.")}
+          </p>
+          {error ? (
+            <button className="button button-primary" type="button" onClick={() => window.location.reload()}>
+              {language === "ar" ? "إعادة المحاولة" : "Retry"}
+            </button>
+          ) : null}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="page-stack">
