@@ -408,7 +408,7 @@ export async function getContractSummary() {
 export async function assignMissingContractNumbers(contracts: ContractRecord[]) {
   const missing = contracts
     .filter((contract) => !contract.contractNumber)
-    .sort(
+    .toSorted(
       (a, b) =>
         (a.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER)
         - (b.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER),
