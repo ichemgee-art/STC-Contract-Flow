@@ -579,7 +579,8 @@ for (const reconciled of [false, true]) {
     assert.equal(counter.value, 4);
     assert.equal(counter.lastReservation, formatNumber(year, 4));
     assert.equal(counter.lastContractId, ref.id);
-    const nextReservation = (await getDoc(doc(editorDb, "contractNumberReservations", formatNumber(year, 4)))).data();
+    const adminDb = testEnv.authenticatedContext(ADMIN_UID).firestore();
+    const nextReservation = (await getDoc(doc(adminDb, "contractNumberReservations", formatNumber(year, 4)))).data();
     assert.equal(nextReservation.contractId, ref.id);
     const legacy = (await getDoc(doc(editorDb, "contracts", "legacy-numbered"))).data();
     assert.equal(legacy.contractNumber, number);
@@ -587,9 +588,8 @@ for (const reconciled of [false, true]) {
 
     if (reconciled) {
       const reservationRef = doc(editorDb, "contractNumberReservations", number);
-      assert.equal((await getDoc(reservationRef)).data().contractId, "legacy-numbered");
+      assert.equal((await getDoc(doc(adminDb, "contractNumberReservations", number))).data().contractId, "legacy-numbered");
       await assertFails(updateDoc(reservationRef, { contractId: ref.id }));
-      const adminDb = testEnv.authenticatedContext(ADMIN_UID).firestore();
       await assertFails(deleteDoc(doc(adminDb, "contractNumberReservations", number)));
     }
   });
