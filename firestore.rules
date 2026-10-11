@@ -95,6 +95,13 @@ service cloud.firestore {
       return "STC-" + string(year) + "-" + paddedSequence(sequence);
     }
 
+    // Egypt is UTC+2 at New Year's midnight. Adding two hours before taking
+    // the year gives the business year used by STC even when Firestore's
+    // request.time is UTC.
+    function cairoYear(timestamp) {
+      return (timestamp + duration.value(2, "h")).year();
+    }
+
     function validContractIdentifier(data) {
       return !hasAnyContractIdentifier(data)
         || (
@@ -138,7 +145,8 @@ service cloud.firestore {
           !oldHasAny
           && newHas
           && admin()
-          && newData.contractYear == oldData.createdAt.year()
+          && admin()
+          && newData.contractYear == cairoYear(oldData.createdAt)
           && validContractIdentifier(newData)
           && validReservationAfter(contractId, newData)
         )
@@ -377,7 +385,7 @@ service cloud.firestore {
       allow create: if activeMember()
         && hasContractIdentifier(request.resource.data)
         && validContract(request.resource.data)
-        && request.resource.data.contractYear == request.time.year()
+        && request.resource.data.contractYear == cairoYear(request.time)
         && validReservationAfter(contractId, request.resource.data)
         && pristineWorkflow(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
