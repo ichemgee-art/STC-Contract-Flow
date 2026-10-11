@@ -52,9 +52,15 @@ function statusTone(value: ExportValue) {
   return "neutral";
 }
 
+function safeExcelValue(value: ExportValue): ExportValue {
+  if (typeof value !== "string") return value;
+  return /^[=+\-@]/.test(value) ? "'" + value : value;
+}
+
 function bodyCell(key: string, value: ExportValue, index: number) {
+  const safeValue = safeExcelValue(value);
   const cell: Record<string, unknown> = {
-    value: value == null ? "" : value,
+    value: safeValue == null ? "" : safeValue,
     backgroundColor: index % 2 ? COLORS.soft : COLORS.white,
     textColor: COLORS.text,
     align: typeof value === "number" ? "center" : "right",
