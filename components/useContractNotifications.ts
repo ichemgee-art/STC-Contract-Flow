@@ -67,11 +67,11 @@ export function useContractNotifications(language: Language) {
         tag: "stc-contract-reminder",
       });
 
-      notification.onclick = () => {
+      notification.addEventListener("click", () => {
         window.focus();
         window.location.href = "/dashboard";
         notification.close();
-      };
+      });
     }
 
     window.localStorage.setItem(LAST_REMINDER_KEY, String(Date.now()));
@@ -110,7 +110,7 @@ export function useContractNotifications(language: Language) {
     playUiSound("reminder");
 
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(
+      const enabledNotification = new Notification(
         language === "ar" ? "تم تفعيل تنبيهات STC" : "STC notifications enabled",
         {
           body:
@@ -120,6 +120,7 @@ export function useContractNotifications(language: Language) {
           tag: "stc-contract-notifications-enabled",
         },
       );
+      enabledNotification.addEventListener("click", () => enabledNotification.close());
     }
   }, [enabled, language]);
 
