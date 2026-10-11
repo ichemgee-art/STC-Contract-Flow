@@ -145,7 +145,6 @@ service cloud.firestore {
           !oldHasAny
           && newHas
           && admin()
-          && admin()
           && newData.contractYear == cairoYear(oldData.createdAt)
           && validContractIdentifier(newData)
           && validReservationAfter(contractId, newData)
