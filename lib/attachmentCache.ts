@@ -11,6 +11,11 @@ channel?.addEventListener("message", () => {
   pending.clear();
 });
 
+function broadcastCacheInvalidation(type: string) {
+  if (!channel) return;
+  BroadcastChannel.prototype.postMessage.call(channel, { type });
+}
+
 export async function retainAttachmentUser(uid: string) {
   if (typeof caches === "undefined") return;
   const names = await caches.keys();
@@ -18,7 +23,7 @@ export async function retainAttachmentUser(uid: string) {
   if (otherUsers.length) {
     generation += 1;
     pending.clear();
-    channel?.postMessage({ type: "switch-user" });
+    broadcastCacheInvalidation("switch-user");
     await Promise.all(otherUsers.map(name => caches.delete(name)));
   }
 }
@@ -26,7 +31,7 @@ export async function retainAttachmentUser(uid: string) {
 export async function clearAttachmentCaches() {
   generation += 1;
   pending.clear();
-  channel?.postMessage({ type: "clear" });
+  broadcastCacheInvalidation("clear");
   if (typeof caches === "undefined") return;
   const names = await caches.keys();
   await Promise.all(names.filter(name => name.startsWith(PREFIX)).map(name => caches.delete(name)));
@@ -35,7 +40,7 @@ export async function clearAttachmentCaches() {
 export async function invalidateAttachment(uid: string, url: string) {
   generation += 1;
   pending.clear();
-  channel?.postMessage({ type: "delete" });
+  broadcastCacheInvalidation("delete");
   if (typeof caches !== "undefined") {
     const cache = await caches.open(PREFIX + uid);
     await cache.delete(url);
