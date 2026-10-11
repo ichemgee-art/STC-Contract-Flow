@@ -37,7 +37,7 @@ for (const [key, value] of Object.entries({
     assert.throws(() => assertPreviewIsolation({ ...isolated, [key]: value }));
   });
 }
-for (const key of Object.keys(isolated).filter(key => key !== "VERCEL_ENV")) {
+for (const key of Object.keys(isolated).filter(setting => setting !== "VERCEL_ENV")) {
   test(`rejects missing Preview setting: ${key}`, () => {
     const env = { ...isolated };
     delete env[key];
