@@ -131,6 +131,15 @@ function formatContractNumber(year: number, sequence: number) {
   return `STC-${year}-${String(sequence).padStart(4, "0")}`;
 }
 
+function cairoYear(value = new Date()) {
+  return Number(
+    new Intl.DateTimeFormat("en", {
+      timeZone: "Africa/Cairo",
+      year: "numeric",
+    }).format(value),
+  );
+}
+
 async function allocateContractNumber(
   transaction: Transaction,
   year: number,
@@ -222,9 +231,7 @@ export async function createContract(
   const stages = Object.fromEntries(STAGE_KEYS.map((key) => [key, false])) as ContractStages;
   const stageDates = Object.fromEntries(STAGE_KEYS.map((key) => [key, null]));
   const contractRef = doc(contractsRef);
-  // Firestore request.time is UTC. Use the same year definition client-side so
-  // New Year's rollover is deterministic across users in different timezones.
-  const year = new Date().getUTCFullYear();
+  const year = cairoYear();
 
   const writeContract = async (legacyCompatibility = false) =>
     runTransaction(db, async (transaction) => {
