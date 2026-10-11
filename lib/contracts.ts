@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   doc,
   getCountFromServer,
@@ -173,6 +172,49 @@ async function allocateContractNumber(
   };
 }
 
+function isPermissionDenied(error: unknown) {
+  return Boolean(
+    error
+    && typeof error === "object"
+    && "code" in error
+    && String((error as { code?: unknown }).code).endsWith("permission-denied"),
+  );
+}
+
+// Temporary rollout compatibility: the currently published production rules
+// predate contractNumberReservations. The new transaction is always attempted
+// first. If only the old rules reject that reservation write, retry the old
+// atomic counter+contract shape. Once the hardened rules are published this
+// fallback is denied by those rules and cannot bypass reservation enforcement.
+async function allocateLegacyContractNumber(
+  transaction: Transaction,
+  year: number,
+) {
+  const counterRef = doc(db, "contractCounters", String(year));
+  const counterSnapshot = await transaction.get(counterRef);
+  const current = counterSnapshot.exists()
+    ? Number(counterSnapshot.data().value ?? 0)
+    : 0;
+
+  if (!Number.isSafeInteger(current) || current < 0) {
+    throw new Error("Contract counter is invalid.");
+  }
+
+  const next = current + 1;
+  transaction.set(counterRef, {
+    year,
+    value: next,
+    updatedAt: serverTimestamp(),
+  });
+
+  return {
+    contractNumber: formatContractNumber(year, next),
+    contractYear: year,
+    contractSequence: next,
+  };
+}
+
+
 export async function createContract(
   input: ContractInput,
   user: { uid: string; displayName: string },
@@ -184,20 +226,30 @@ export async function createContract(
   // New Year's rollover is deterministic across users in different timezones.
   const year = new Date().getUTCFullYear();
 
-  await runTransaction(db, async (transaction) => {
-    const identifier = await allocateContractNumber(transaction, year, contractRef.id);
+  const writeContract = async (legacyCompatibility = false) =>
+    runTransaction(db, async (transaction) => {
+      const identifier = legacyCompatibility
+        ? await allocateLegacyContractNumber(transaction, year)
+        : await allocateContractNumber(transaction, year, contractRef.id);
 
-    transaction.set(contractRef, {
-      ...input,
-      ...identifier,
-      stages,
-      stageDates,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      createdBy: user.uid,
-      createdByName: user.displayName,
+      transaction.set(contractRef, {
+        ...input,
+        ...identifier,
+        stages,
+        stageDates,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: user.uid,
+        createdByName: user.displayName,
+      });
     });
-  });
+
+  try {
+    await writeContract(false);
+  } catch (error) {
+    if (!isPermissionDenied(error)) throw error;
+    await writeContract(true);
+  }
 
   return contractRef;
 }
@@ -367,26 +419,37 @@ export async function assignMissingContractNumbers(contracts: ContractRecord[]) 
   for (const contract of missing) {
     const contractRef = doc(db, "contracts", contract.id);
 
-    const changed = await runTransaction(db, async (transaction) => {
-      const snapshot = await transaction.get(contractRef);
-      if (!snapshot.exists()) return false;
+    const assign = async (legacyCompatibility = false) =>
+      runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(contractRef);
+        if (!snapshot.exists()) return false;
 
-      const data = snapshot.data();
-      if (data.contractNumber) return false;
+        const data = snapshot.data();
+        if (data.contractNumber) return false;
 
-      const createdAt = data.createdAt;
-      const year =
-        createdAt && typeof createdAt.toDate === "function"
-          ? createdAt.toDate().getUTCFullYear()
-          : new Date().getUTCFullYear();
-      const identifier = await allocateContractNumber(transaction, year, contract.id);
+        const createdAt = data.createdAt;
+        const year =
+          createdAt && typeof createdAt.toDate === "function"
+            ? createdAt.toDate().getUTCFullYear()
+            : new Date().getUTCFullYear();
+        const identifier = legacyCompatibility
+          ? await allocateLegacyContractNumber(transaction, year)
+          : await allocateContractNumber(transaction, year, contract.id);
 
-      transaction.update(contractRef, {
-        ...identifier,
-        updatedAt: serverTimestamp(),
+        transaction.update(contractRef, {
+          ...identifier,
+          updatedAt: serverTimestamp(),
+        });
+        return true;
       });
-      return true;
-    });
+
+    let changed: boolean;
+    try {
+      changed = await assign(false);
+    } catch (error) {
+      if (!isPermissionDenied(error)) throw error;
+      changed = await assign(true);
+    }
 
     if (changed) assigned += 1;
   }
