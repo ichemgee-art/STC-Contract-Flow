@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { ContractForm } from "@/components/ContractForm";
 import { SuccessCelebration } from "@/components/SuccessCelebration";
@@ -19,9 +19,11 @@ export default function NewContractPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [createdContractId, setCreatedContractId] = useState("");
+  const submitLock = useRef(false);
 
   async function submit(input: ContractInput) {
-    if (!user || !profile?.active) return;
+    if (!user || !profile?.active || submitLock.current) return;
+    submitLock.current = true;
     primeUiAudio();
     setBusy(true);
     setError("");
@@ -35,6 +37,7 @@ export default function NewContractPage() {
       playUiSound("created");
       setCreatedContractId(reference.id);
     } catch {
+      submitLock.current = false;
       setError(t("createContractError"));
       setBusy(false);
     }
