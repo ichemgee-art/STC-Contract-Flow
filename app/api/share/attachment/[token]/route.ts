@@ -1,5 +1,6 @@
 import { get } from "@vercel/blob";
 import { verifyAttachmentShareToken } from "@/lib/attachmentShare";
+import { contractTombstonePath } from "@/lib/contractDeletion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,21 @@ export async function GET(
   const payload = verifyAttachmentShareToken(token);
 
   if (!payload) {
+    return new Response("Share link is invalid or expired.", {
+      status: 410,
+      headers: {
+        "Cache-Control": "no-store",
+        "Content-Type": "text/plain; charset=utf-8",
+      },
+    });
+  }
+
+  const tombstone = await get(
+    contractTombstonePath(payload.contractId),
+    { access: "private", useCache: false },
+  );
+
+  if (tombstone?.statusCode === 200) {
     return new Response("Share link is invalid or expired.", {
       status: 410,
       headers: {
