@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { acquireAttachmentLock } from "@/lib/attachmentLock";
 import { requireActiveMember } from "@/lib/serverAuth";
 import { contractTombstonePath } from "@/lib/contractDeletion";
+import { appendDeletionJournal, createDeletionAttemptId } from "@/lib/deletionJournal";
 
 export const runtime = "nodejs";
 
@@ -167,6 +168,17 @@ export async function DELETE(
     // once the parent is gone, closing the create-note-vs-delete race. The
     // private Blob tombstone makes every pre-existing QR token fail immediately,
     // even if attachment cleanup later has a transient failure.
+    const attemptId = createDeletionAttemptId();
+    // If the private audit store cannot record who requested deletion, do not
+    // delete the contract. This is fail-closed for a destructive operation.
+    await appendDeletionJournal({
+      attemptId,
+      contractId: id,
+      actorUid: lockedMember.uid,
+      actorName: lockedMember.displayName,
+      outcome: "requested",
+    });
+
     const deletion = await deleteFirestoreContract(id, token);
     if (!deletion.ok && deletion.status !== 404) {
       if (tombstoneCreated) {
@@ -178,6 +190,23 @@ export async function DELETE(
         { error: "Could not delete contract." },
         { status },
       );
+    }
+
+    let auditJournalPending = false;
+    try {
+      await appendDeletionJournal({
+        attemptId,
+        contractId: id,
+        actorUid: lockedMember.uid,
+        actorName: lockedMember.displayName,
+        outcome: "succeeded",
+        alreadyDeleted: deletion.status === 404,
+      });
+    } catch (error) {
+      // The request event has already been persisted; do not pretend the
+      // post-deletion success event is complete if the store was unavailable.
+      auditJournalPending = true;
+      console.error("Contract deleted but audit success journal failed", { contractId: id, error });
     }
 
     let notesCleanupPending = false;
@@ -202,7 +231,7 @@ export async function DELETE(
       });
     }
 
-    const cleanupPending = notesCleanupPending || failedCleanup.length > 0;
+    const cleanupPending = notesCleanupPending || failedCleanup.length > 0 || auditJournalPending;
 
     return NextResponse.json(
       {
@@ -211,6 +240,7 @@ export async function DELETE(
         attachmentsDeleted: blobs.blobs.length - failedCleanup.length,
         attachmentCleanupPending: failedCleanup.length,
         notesCleanupPending,
+        auditJournalPending,
       },
       { status: cleanupPending ? 202 : 200 },
     );
