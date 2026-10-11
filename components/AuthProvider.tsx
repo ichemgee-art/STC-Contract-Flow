@@ -80,11 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    let unsubscribeProfile = () => undefined;
+    let unsubscribeProfile: () => void = () => {};
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (nextUser) => {
       unsubscribeProfile();
-      unsubscribeProfile = () => undefined;
+      unsubscribeProfile = () => {};
       setUser(nextUser);
 
       if (!nextUser) {
