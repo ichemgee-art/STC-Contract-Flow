@@ -14,7 +14,7 @@
     "lint": "oxlint -D correctness -D suspicious ."
   },
   "dependencies": {
-    "firebase": "12.19.0",
+    "firebase": "13.0.0",
     "lucide-react": "1.51.0",
     "next": "16.3.8",
     "react": "19.3.0",
@@ -32,9 +32,8 @@
     "@playwright/test": "1.63.0",
     "firebase-admin": "14.5.0",
     "firebase-tools": "15.30.2",
-    "@firebase/rules-unit-testing": "5.0.2",
-    "oxlint": "1.87.0",
-    "eslint": "^9.0.0"
+    "@firebase/rules-unit-testing": "6.0.0",
+    "oxlint": "1.87.0"
   },
   "engines": {
     "node": "24.x"
