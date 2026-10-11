@@ -332,7 +332,6 @@ function displayValue(value: ExportValue, locale: string) {
 }
 
 export async function exportPdf({
-  filename,
   title,
   subtitle,
   sheets,
@@ -530,7 +529,7 @@ td.tone-danger { background: #FDECEC !important; color: #D64545 !important; font
   window.addEventListener("load", () => setTimeout(runPrint, 160));
   window.addEventListener("afterprint", () => setTimeout(() => window.close(), 200));
 })();
-<\/script>
+</script>
 </body>
 </html>`);
   popup.document.close();
