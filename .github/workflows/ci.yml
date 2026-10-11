@@ -28,7 +28,16 @@ jobs:
           node-version: "24"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production dependency audit
+        run: npm run security:audit
 
       - name: Build
         run: npm run build
