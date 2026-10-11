@@ -11,7 +11,6 @@ import {
   runTransaction,
   serverTimestamp,
   startAfter,
-  updateDoc,
   type DocumentData,
   type DocumentSnapshot,
   type QueryDocumentSnapshot,
