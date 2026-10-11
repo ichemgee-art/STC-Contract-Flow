@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 
+const emulatorConnect =
+  process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true"
+    ? " http://127.0.0.1:8080 http://127.0.0.1:9099 ws://127.0.0.1:8080"
+    : "";
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -10,7 +15,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com",
+  "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com" + emulatorConnect,
   "frame-src 'self' blob: https://*.firebaseapp.com",
   "worker-src 'self' blob:",
   "media-src 'self' blob:",
