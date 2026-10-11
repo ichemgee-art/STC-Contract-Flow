@@ -267,10 +267,31 @@ export async function getContract(id: string) {
   return fromSnapshot(snapshot);
 }
 
-export async function updateContractBasics(id: string, input: ContractInput) {
-  return updateDoc(doc(db, "contracts", id), {
-    ...input,
-    updatedAt: serverTimestamp(),
+export async function updateContractBasics(
+  contract: ContractRecord,
+  input: ContractInput,
+) {
+  const contractRef = doc(db, "contracts", contract.id);
+  const expectedUpdatedAt = contract.updatedAt?.toMillis() ?? null;
+
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(contractRef);
+    if (!snapshot.exists()) throw new Error("Contract no longer exists.");
+
+    const currentUpdatedAt = snapshot.data().updatedAt;
+    const currentUpdatedAtMs =
+      currentUpdatedAt && typeof currentUpdatedAt.toMillis === "function"
+        ? currentUpdatedAt.toMillis()
+        : null;
+
+    if (currentUpdatedAtMs !== expectedUpdatedAt) {
+      throw new Error("Contract changed while you were editing. Refresh and try again.");
+    }
+
+    transaction.update(contractRef, {
+      ...input,
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
