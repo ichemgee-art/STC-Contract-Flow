@@ -38,46 +38,56 @@ async function deleteFirestoreContract(contractId: string, token: string) {
 
 async function cleanupContractNotes(contractId: string, token: string) {
   const baseUrl = firestoreBaseUrl();
-  let pageToken = "";
 
-  do {
-    const suffix = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
+  // Always drain the first page. Deleting documents while following a page
+  // token can skip records because the collection changes between pages.
+  for (let pass = 0; pass < 100; pass += 1) {
     const response = await fetch(
-      `${baseUrl}/contracts/${encodeURIComponent(contractId)}/notes?pageSize=100${suffix}`,
+      `${baseUrl}/contracts/${encodeURIComponent(contractId)}/notes?pageSize=100`,
       {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
       },
     );
 
-    if (response.status === 404) return;
+    if (response.status === 404) return 0;
     if (!response.ok) throw new Error("Could not list contract notes.");
 
     const payload = (await response.json()) as {
       documents?: Array<{ name?: string }>;
-      nextPageToken?: string;
     };
+    const documents = payload.documents ?? [];
+    if (!documents.length) return 0;
 
-    for (const document of payload.documents ?? []) {
-      const noteId = document.name?.split("/").at(-1);
-      if (!noteId) continue;
+    const deletions = await Promise.allSettled(
+      documents.map(async (document) => {
+        const noteId = document.name?.split("/").at(-1);
+        if (!noteId) return;
 
-      const deletion = await fetch(
-        `${baseUrl}/contracts/${encodeURIComponent(contractId)}/notes/${encodeURIComponent(noteId)}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        },
-      );
+        const deletion = await fetch(
+          `${baseUrl}/contracts/${encodeURIComponent(contractId)}/notes/${encodeURIComponent(noteId)}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+            signal: AbortSignal.timeout(15_000),
+          },
+        );
 
-      if (!deletion.ok && deletion.status !== 404) {
-        throw new Error("Could not delete contract note.");
-      }
-    }
+        if (!deletion.ok && deletion.status !== 404) {
+          throw new Error("Could not delete contract note.");
+        }
+      }),
+    );
 
-    pageToken = payload.nextPageToken ?? "";
-  } while (pageToken);
+    const failed = deletions.filter((result) => result.status === "rejected");
+    if (failed.length) throw new Error("Could not delete all contract notes.");
+
+    if (documents.length < 100) return 0;
+  }
+
+  throw new Error("Contract note cleanup exceeded its safety bound.");
 }
 
 async function cleanupBlobs(pathnames: string[]) {
@@ -104,8 +114,11 @@ export async function DELETE(
 
   try {
     const { id } = await context.params;
-    const member = await requireActiveMember(request, id);
 
+    // Authenticate/authorize independently of the contract document so this
+    // endpoint remains idempotent and can retry orphan cleanup after a partial
+    // previous deletion.
+    const member = await requireActiveMember(request);
     if (member.role !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -117,9 +130,7 @@ export async function DELETE(
 
     release = await acquireAttachmentLock(id);
 
-    // Re-check after obtaining the same lease used by uploads. This prevents
-    // a late image write from racing with contract deletion.
-    const lockedMember = await requireActiveMember(request, id);
+    const lockedMember = await requireActiveMember(request);
     if (lockedMember.role !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -133,15 +144,26 @@ export async function DELETE(
           abortSignal: AbortSignal.timeout(30_000),
         });
 
-    await cleanupContractNotes(id, token);
-
+    // Delete the parent first. Hardened Firestore rules deny new note creation
+    // once the parent is gone, closing the create-note-vs-delete race.
     const deletion = await deleteFirestoreContract(id, token);
-    if (!deletion.ok) {
-      const status = deletion.status === 404 ? 404 : deletion.status === 403 ? 403 : 500;
+    if (!deletion.ok && deletion.status !== 404) {
+      const status = deletion.status === 403 ? 403 : 500;
       return NextResponse.json(
-        { error: status === 404 ? "Contract not found." : "Could not delete contract." },
+        { error: "Could not delete contract." },
         { status },
       );
+    }
+
+    let notesCleanupPending = false;
+    try {
+      await cleanupContractNotes(id, token);
+    } catch (error) {
+      notesCleanupPending = true;
+      console.error("Contract deleted but note cleanup failed", {
+        contractId: id,
+        error,
+      });
     }
 
     const failedCleanup = await cleanupBlobs(
@@ -155,11 +177,18 @@ export async function DELETE(
       });
     }
 
-    return NextResponse.json({
-      ok: true,
-      attachmentsDeleted: blobs.blobs.length - failedCleanup.length,
-      cleanupPending: failedCleanup.length,
-    });
+    const cleanupPending = notesCleanupPending || failedCleanup.length > 0;
+
+    return NextResponse.json(
+      {
+        ok: true,
+        alreadyDeleted: deletion.status === 404,
+        attachmentsDeleted: blobs.blobs.length - failedCleanup.length,
+        attachmentCleanupPending: failedCleanup.length,
+        notesCleanupPending,
+      },
+      { status: cleanupPending ? 202 : 200 },
+    );
   } catch (cause) {
     if (cause instanceof Response) return cause;
     console.error("Contract delete API error", cause);
@@ -168,3 +197,4 @@ export async function DELETE(
     await release?.();
   }
 }
+
