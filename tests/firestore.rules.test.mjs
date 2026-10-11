@@ -556,24 +556,24 @@ test("audited updates require a matching immutable actor-bound event", async () 
   const editorDb = testEnv.authenticatedContext(EDITOR_UID).firestore();
   const adminDb = testEnv.authenticatedContext(ADMIN_UID).firestore();
   const contractRef = await createReservedContract(editorDb, { id: "audited-details" });
-  const before = (await getDoc(contractRef)).data();
+  const beforeState = (await getDoc(contractRef)).data();
   const entryRef = doc(collection(editorDb, "contractAudit", "audited-details", "entries"));
-  const after = { ...before, companyName: "Audited Company" };
+  const afterState = { ...beforeState, companyName: "Audited Company" };
 
   await assertSucceeds(runTransaction(editorDb, async (transaction) => {
     const current = await transaction.get(contractRef);
-    assert.equal(current.data().companyName, before.companyName);
+    assert.equal(current.data().companyName, beforeState.companyName);
     transaction.set(entryRef, {
       contractId: "audited-details",
       action: "details_updated",
       actorUid: EDITOR_UID,
       actorName: EDITOR_NAME,
       at: serverTimestamp(),
-      before: contractAuditSummary(before),
-      after: contractAuditSummary(after),
+      before: contractAuditSummary(beforeState),
+      after: contractAuditSummary(afterState),
     });
     transaction.update(contractRef, {
-      companyName: after.companyName,
+      companyName: afterState.companyName,
       lastAuditEventId: entryRef.id,
       updatedAt: serverTimestamp(),
     });
