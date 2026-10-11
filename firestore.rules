@@ -158,6 +158,50 @@ service cloud.firestore {
         );
     }
 
+    function auditContractPath(contractId) {
+      return /databases/$(database)/documents/contracts/$(contractId);
+    }
+
+    function auditEventPath(contractId, eventId) {
+      return /databases/$(database)/documents/contractAudit/$(contractId)/entries/$(eventId);
+    }
+
+    function auditSummary(data) {
+      return {
+        "contractNumber": data.get("contractNumber", ""),
+        "salesRepresentative": data.salesRepresentative,
+        "companyName": data.companyName,
+        "contractType": data.contractType,
+        "product": data.product,
+        "stages": data.stages
+      };
+    }
+
+    function hasAuditReference(data) {
+      return data.keys().hasAny(["lastAuditEventId"]);
+    }
+
+    function validAuditReference(contractId, data) {
+      let eventId = data.lastAuditEventId;
+      let event = getAfter(auditEventPath(contractId, eventId)).data;
+      return eventId is string
+        && eventId.size() >= 8
+        && eventId.size() <= 80
+        && event.contractId == contractId
+        && event.actorUid == request.auth.uid
+        && event.at == request.time
+        && event.after == auditSummary(data);
+    }
+
+    // New audited contracts cannot be modified without a fresh, same-transaction
+    // immutable event. Legacy records are migrated on first audited edit.
+    function validAuditTransition(contractId, oldData, newData) {
+      return (!hasAuditReference(oldData) && !hasAuditReference(newData))
+        || (hasAuditReference(newData)
+          && newData.lastAuditEventId != oldData.get("lastAuditEventId", "")
+          && validAuditReference(contractId, newData));
+    }
+
     function validContract(data) {
       return data.keys().hasOnly([
           "contractNumber",
@@ -172,7 +216,8 @@ service cloud.firestore {
           "createdAt",
           "updatedAt",
           "createdBy",
-          "createdByName"
+          "createdByName",
+          "lastAuditEventId"
         ])
         && data.salesRepresentative is string
         && data.salesRepresentative.size() >= 2
@@ -390,7 +435,9 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.createdByName == get(memberPath()).data.displayName
         && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && (!hasAuditReference(request.resource.data)
+          || validAuditReference(contractId, request.resource.data));
 
       allow update: if activeMember()
         && validContract(request.resource.data)
@@ -399,6 +446,7 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time
         && identifierTransition(contractId, resource.data, request.resource.data)
+        && validAuditTransition(contractId, resource.data, request.resource.data)
         && validStageTransitions(resource.data, request.resource.data);
 
       allow delete: if admin();
@@ -437,6 +485,39 @@ service cloud.firestore {
             )
           );
       }
+    }
+
+    function validAuditEvent(contractId, eventId) {
+      let event = request.resource.data;
+      let nextContract = getAfter(auditContractPath(contractId)).data;
+      let existed = exists(auditContractPath(contractId));
+      return activeMember()
+        && event.keys().hasOnly([
+          "contractId", "action", "actorUid", "actorName", "at", "before", "after"
+        ])
+        && event.keys().hasAll([
+          "contractId", "action", "actorUid", "actorName", "at", "before", "after"
+        ])
+        && event.contractId == contractId
+        && event.action in [
+          "created", "details_updated", "stage_updated", "number_assigned"
+        ]
+        && event.actorUid == request.auth.uid
+        && event.actorName == get(memberPath()).data.displayName
+        && event.at == request.time
+        && nextContract.updatedAt == request.time
+        && nextContract.lastAuditEventId == eventId
+        && event.after == auditSummary(nextContract)
+        && ((!existed && event.action == "created" && event.before == null)
+          || (existed && event.action != "created"
+            && event.before == auditSummary(get(auditContractPath(contractId)).data)));
+    }
+
+    // Immutable transaction-bound events, readable by admins only.
+    match /contractAudit/{contractId}/entries/{eventId} {
+      allow read: if admin();
+      allow create: if validAuditEvent(contractId, eventId);
+      allow update, delete: if false;
     }
 
     match /contractNumberReservations/{contractNumber} {

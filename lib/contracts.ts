@@ -19,6 +19,12 @@ import {
 import { auth, db } from "@/lib/firebase";
 import { clearAttachmentCaches } from "@/lib/attachmentCache";
 import {
+  CONTRACT_AUDIT_ENABLED,
+  appendContractAudit,
+  auditSummary,
+  currentAuditActor,
+} from "@/lib/contractAudit";
+import {
   canCompleteStage,
   getContractStatus,
   STAGE_KEYS,
@@ -231,6 +237,7 @@ export async function createContract(
   const stageDates = Object.fromEntries(STAGE_KEYS.map((key) => [key, null]));
   const contractRef = doc(contractsRef);
   const year = cairoYear();
+  const actor = CONTRACT_AUDIT_ENABLED ? await currentAuditActor() : null;
 
   const writeContract = async (legacyCompatibility = false) =>
     runTransaction(db, async (transaction) => {
@@ -238,7 +245,7 @@ export async function createContract(
         ? await allocateLegacyContractNumber(transaction, year)
         : await allocateContractNumber(transaction, year, contractRef.id);
 
-      transaction.set(contractRef, {
+      const contractData = {
         ...input,
         ...identifier,
         stages,
@@ -247,7 +254,19 @@ export async function createContract(
         updatedAt: serverTimestamp(),
         createdBy: user.uid,
         createdByName: user.displayName,
-      });
+      };
+      if (actor) {
+        if (actor.uid !== user.uid || actor.displayName !== user.displayName) {
+          throw new Error("Audit actor does not match contract creator.");
+        }
+        const eventId = appendContractAudit(
+          transaction, contractRef.id, "created", actor, null,
+          auditSummary(contractData),
+        );
+        transaction.set(contractRef, { ...contractData, lastAuditEventId: eventId });
+      } else {
+        transaction.set(contractRef, contractData);
+      }
     });
 
   try {
@@ -272,6 +291,7 @@ export async function updateContractBasics(
 ) {
   const contractRef = doc(db, "contracts", contract.id);
   const expectedUpdatedAt = contract.updatedAt?.toMillis() ?? null;
+  const actor = CONTRACT_AUDIT_ENABLED ? await currentAuditActor() : null;
 
   return runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(contractRef);
@@ -287,10 +307,21 @@ export async function updateContractBasics(
       throw new Error("Contract changed while you were editing. Refresh and try again.");
     }
 
-    transaction.update(contractRef, {
+    const update = {
       ...input,
       updatedAt: serverTimestamp(),
-    });
+    };
+    if (actor) {
+      const current = snapshot.data();
+      const auditId = appendContractAudit(
+        transaction, contract.id, "details_updated", actor,
+        auditSummary(current as ContractRecord),
+        auditSummary({ ...current, ...input } as ContractRecord),
+      );
+      transaction.update(contractRef, { ...update, lastAuditEventId: auditId });
+    } else {
+      transaction.update(contractRef, update);
+    }
   });
 }
 
@@ -299,6 +330,7 @@ export async function updateContractStage(contract: ContractRecord, stage: Stage
   if (stageIndex < 0) throw new Error("Invalid workflow stage.");
 
   const contractRef = doc(db, "contracts", contract.id);
+  const actor = CONTRACT_AUDIT_ENABLED ? await currentAuditActor() : null;
   const localLaterProgress =
     !checked
     && STAGE_KEYS.slice(stageIndex + 1).some((key) => contract.stages[key]);
@@ -352,11 +384,21 @@ export async function updateContractStage(contract: ContractRecord, stage: Stage
       }
     }
 
-    transaction.update(contractRef, {
+    const nextData = {
       stages: nextStages,
       stageDates: nextDates,
       updatedAt: serverTimestamp(),
-    });
+    };
+    if (actor) {
+      const auditId = appendContractAudit(
+        transaction, contract.id, "stage_updated", actor,
+        auditSummary(data as ContractRecord),
+        auditSummary({ ...data, ...nextData } as ContractRecord),
+      );
+      transaction.update(contractRef, { ...nextData, lastAuditEventId: auditId });
+    } else {
+      transaction.update(contractRef, nextData);
+    }
     return true;
   });
 }
@@ -462,6 +504,7 @@ export async function assignMissingContractNumbers(contracts: ContractRecord[]) 
     );
 
   let assigned = 0;
+  const actor = CONTRACT_AUDIT_ENABLED ? await currentAuditActor() : null;
 
   for (const contract of missing) {
     const contractRef = doc(db, "contracts", contract.id);
@@ -483,10 +526,17 @@ export async function assignMissingContractNumbers(contracts: ContractRecord[]) 
           ? await allocateLegacyContractNumber(transaction, year)
           : await allocateContractNumber(transaction, year, contract.id);
 
-        transaction.update(contractRef, {
-          ...identifier,
-          updatedAt: serverTimestamp(),
-        });
+        const update = { ...identifier, updatedAt: serverTimestamp() };
+        if (actor) {
+          const auditId = appendContractAudit(
+            transaction, contract.id, "number_assigned", actor,
+            auditSummary(data as ContractRecord),
+            auditSummary({ ...data, ...identifier } as ContractRecord),
+          );
+          transaction.update(contractRef, { ...update, lastAuditEventId: auditId });
+        } else {
+          transaction.update(contractRef, update);
+        }
         return true;
       });
 

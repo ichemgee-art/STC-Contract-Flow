@@ -539,3 +539,68 @@ test("admins can delete orphan notes for retryable cleanup", async () => {
   await assertFails(getDoc(doc(editorDb, "contracts", "gone", "notes", "orphan")));
   await assertSucceeds(deleteDoc(doc(adminDb, "contracts", "gone", "notes", "orphan")));
 });
+
+
+function contractAuditSummary(data) {
+  return {
+    contractNumber: data.contractNumber ?? "",
+    salesRepresentative: data.salesRepresentative,
+    companyName: data.companyName,
+    contractType: data.contractType,
+    product: data.product,
+    stages: data.stages,
+  };
+}
+
+test("audited updates require a matching immutable actor-bound event", async () => {
+  const editorDb = testEnv.authenticatedContext(EDITOR_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID).firestore();
+  const contractRef = await createReservedContract(editorDb, { id: "audited-details" });
+  const beforeState = (await getDoc(contractRef)).data();
+  const entryRef = doc(collection(editorDb, "contractAudit", "audited-details", "entries"));
+  const afterState = { ...beforeState, companyName: "Audited Company" };
+
+  await assertSucceeds(runTransaction(editorDb, async (transaction) => {
+    const current = await transaction.get(contractRef);
+    assert.equal(current.data().companyName, beforeState.companyName);
+    transaction.set(entryRef, {
+      contractId: "audited-details",
+      action: "details_updated",
+      actorUid: EDITOR_UID,
+      actorName: EDITOR_NAME,
+      at: serverTimestamp(),
+      before: contractAuditSummary(beforeState),
+      after: contractAuditSummary(afterState),
+    });
+    transaction.update(contractRef, {
+      companyName: afterState.companyName,
+      lastAuditEventId: entryRef.id,
+      updatedAt: serverTimestamp(),
+    });
+  }));
+
+  await assertSucceeds(getDoc(doc(adminDb, "contractAudit", "audited-details", "entries", entryRef.id)));
+  await assertFails(updateDoc(entryRef, { actorName: "Forged" }));
+  await assertFails(deleteDoc(entryRef));
+  await assertFails(updateDoc(contractRef, {
+    companyName: "Bypass without audit",
+    updatedAt: serverTimestamp(),
+  }));
+});
+
+test("forged standalone audit event and editor reads are rejected", async () => {
+  const editorDb = testEnv.authenticatedContext(EDITOR_UID).firestore();
+  await createReservedContract(editorDb, { id: "audit-forgery" });
+  const contract = (await getDoc(doc(editorDb, "contracts", "audit-forgery"))).data();
+  const eventRef = doc(collection(editorDb, "contractAudit", "audit-forgery", "entries"));
+  await assertFails(setDoc(eventRef, {
+    contractId: "audit-forgery",
+    action: "details_updated",
+    actorUid: EDITOR_UID,
+    actorName: EDITOR_NAME,
+    at: serverTimestamp(),
+    before: contractAuditSummary(contract),
+    after: contractAuditSummary(contract),
+  }));
+  await assertFails(getDoc(eventRef));
+});
