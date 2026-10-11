@@ -64,7 +64,11 @@ function jpegHasPrivateMetadata(bytes: Uint8Array) {
 
     const segmentLength = view.getUint16(offset, false);
     if (segmentLength < 2 || offset + segmentLength > bytes.length) break;
-    if (marker === 0xe1) return true; // EXIF/XMP APP1 metadata.
+    if (
+      marker === 0xe1 // EXIF/XMP APP1
+      || marker === 0xed // IPTC/Photoshop APP13
+      || marker === 0xfe // JPEG comment metadata
+    ) return true;
     offset += segmentLength;
   }
 
@@ -78,7 +82,12 @@ function pngHasPrivateMetadata(bytes: Uint8Array) {
   while (offset + 12 <= bytes.length) {
     const length = view.getUint32(offset, false);
     const type = String.fromCharCode(...bytes.slice(offset + 4, offset + 8));
-    if (type === "eXIf") return true;
+    if (
+      type === "eXIf"
+      || type === "tEXt"
+      || type === "zTXt"
+      || type === "iTXt"
+    ) return true;
     if (type === "IEND") break;
     const next = offset + 12 + length;
     if (next <= offset || next > bytes.length) break;
@@ -95,7 +104,7 @@ function webpHasPrivateMetadata(bytes: Uint8Array) {
   while (offset + 8 <= bytes.length) {
     const type = String.fromCharCode(...bytes.slice(offset, offset + 4));
     const length = view.getUint32(offset + 4, true);
-    if (type === "EXIF" || type === "XMP ") return true;
+    if (type === "EXIF" || type === "XMP " || type === "ICCP") return true;
     const padded = length + (length % 2);
     const next = offset + 8 + padded;
     if (next <= offset || next > bytes.length) break;
