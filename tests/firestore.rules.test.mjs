@@ -137,6 +137,40 @@ async function createReservedContract(db, {
   return contractRef;
 }
 
+async function assignLegacyNumber(db, id, year) {
+  const contractRef = doc(db, "contracts", id);
+  return runTransaction(db, async (transaction) => {
+    const counterRef = doc(db, "contractCounters", String(year));
+    const counterSnapshot = await transaction.get(counterRef);
+    const current = counterSnapshot.exists()
+      ? Number(counterSnapshot.data().value ?? 0)
+      : 0;
+    const sequence = current + 1;
+    const contractNumber = formatNumber(year, sequence);
+    const reservationRef = doc(db, "contractNumberReservations", contractNumber);
+
+    transaction.set(reservationRef, {
+      contractId: id,
+      year,
+      sequence,
+      createdAt: serverTimestamp(),
+    });
+    transaction.set(counterRef, {
+      year,
+      value: sequence,
+      lastReservation: contractNumber,
+      lastContractId: id,
+      updatedAt: serverTimestamp(),
+    });
+    transaction.update(contractRef, {
+      contractNumber,
+      contractYear: year,
+      contractSequence: sequence,
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
 async function completeStage(db, contractRef, stage) {
   const snapshot = await getDoc(contractRef);
   const data = snapshot.data();
@@ -319,6 +353,34 @@ test("legacy contracts cannot be given a partial identifier", async () => {
     contractNumber: formatNumber(year, 1),
     updatedAt: serverTimestamp(),
   }));
+});
+
+test("only admins can assign numbers to legacy contracts", async () => {
+  const year = new Date().getUTCFullYear();
+
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "contracts", "legacy-admin-only"), {
+      salesRepresentative: "Rules Representative",
+      companyName: "Legacy Admin Company",
+      contractType: "Supply",
+      product: "HPL",
+      stages: emptyStages(),
+      stageDates: emptyDates(),
+      createdAt: Timestamp.fromDate(new Date(Date.UTC(year, 2, 1))),
+      updatedAt: Timestamp.fromDate(new Date(Date.UTC(year, 2, 1))),
+      createdBy: EDITOR_UID,
+      createdByName: EDITOR_NAME,
+    });
+  });
+
+  const editorDb = testEnv.authenticatedContext(EDITOR_UID).firestore();
+  await assertFails(assignLegacyNumber(editorDb, "legacy-admin-only", year));
+
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID).firestore();
+  await assertSucceeds(assignLegacyNumber(adminDb, "legacy-admin-only", year));
+
+  const snapshot = await getDoc(doc(adminDb, "contracts", "legacy-admin-only"));
+  assert.equal(snapshot.data().contractNumber, formatNumber(year, 1));
 });
 
 test("workflow cannot skip stages or forge a stage timestamp", async () => {
