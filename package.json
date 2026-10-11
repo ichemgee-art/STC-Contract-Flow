@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "e2e": "firebase emulators:exec --project demo-stc-contract-flow --only auth,firestore \"npm run e2e:run\"",
-    "e2e:run": "playwright test"
+    "e2e:run": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "test:rules": "firebase emulators:exec --project demo-stc-contract-flow-rules --only firestore \"node --test tests/firestore.rules.test.mjs\"",
+    "security:audit": "npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
     "firebase": "12.19.0",
@@ -27,7 +30,8 @@
     "typescript": "7.0.2",
     "@playwright/test": "1.63.0",
     "firebase-admin": "14.5.0",
-    "firebase-tools": "15.30.2"
+    "firebase-tools": "15.30.2",
+    "@firebase/rules-unit-testing": "6.0.0"
   },
   "engines": {
     "node": "24.x"
