@@ -98,8 +98,8 @@ service cloud.firestore {
     // Egypt is UTC+2 at New Year's midnight. Adding two hours before taking
     // the year gives the business year used by STC even when Firestore's
     // request.time is UTC.
-    function cairoYear(timestamp) {
-      return (timestamp + duration.value(2, "h")).year();
+    function cairoYear(value) {
+      return (value + duration.value(2, "h")).year();
     }
 
     function validContractIdentifier(data) {
