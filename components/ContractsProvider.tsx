@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Timestamp,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
@@ -23,7 +22,7 @@ import {
   loadOlderContracts,
   subscribeContracts,
 } from "@/lib/contracts";
-import { STAGE_KEYS, type ContractRecord, type StageKey } from "@/types/contract";
+import { type ContractRecord } from "@/types/contract";
 
 interface ContractsContextValue {
   contracts: ContractRecord[];
@@ -41,80 +40,22 @@ interface ContractsContextValue {
   refreshCount: () => Promise<number>;
 }
 
-interface StoredContract extends Omit<ContractRecord, "createdAt" | "updatedAt" | "stageDates"> {
-  createdAt: number | null;
-  updatedAt: number | null;
-  stageDates: Record<StageKey, number | null>;
-}
-
 const ContractsContext = createContext<ContractsContextValue | undefined>(undefined);
 const memoryByUser = new Map<string, ContractRecord[]>();
-const SESSION_PREFIX = "stc-contracts-session-v2-";
 
-function timestampMillis(value: ContractRecord["createdAt"]) {
-  return value ? value.toMillis() : null;
-}
-
-function serializeContract(contract: ContractRecord): StoredContract {
-  return {
-    ...contract,
-    createdAt: timestampMillis(contract.createdAt),
-    updatedAt: timestampMillis(contract.updatedAt),
-    stageDates: Object.fromEntries(
-      STAGE_KEYS.map((key) => [key, contract.stageDates[key]?.toMillis() ?? null]),
-    ) as Record<StageKey, number | null>,
-  };
-}
-
-function hydrateContract(contract: StoredContract): ContractRecord {
-  return {
-    ...contract,
-    createdAt: contract.createdAt == null ? null : Timestamp.fromMillis(contract.createdAt),
-    updatedAt: contract.updatedAt == null ? null : Timestamp.fromMillis(contract.updatedAt),
-    stageDates: Object.fromEntries(
-      STAGE_KEYS.map((key) => [
-        key,
-        contract.stageDates[key] == null ? null : Timestamp.fromMillis(contract.stageDates[key]!),
-      ]),
-    ) as ContractRecord["stageDates"],
-  };
-}
-
-function readSession(uid: string) {
+// Older releases stored full contract names, workflow dates, and user data in
+// sessionStorage. Remove those persisted copies as soon as the new app starts.
+function purgeLegacyContractStorage() {
+  if (typeof window === "undefined") return;
   try {
-    const raw = window.sessionStorage.getItem(SESSION_PREFIX + uid);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredContract[];
-    if (!Array.isArray(parsed)) return null;
-    return parsed.map(hydrateContract);
-  } catch {
-    return null;
-  }
-}
-
-function writeSession(uid: string, contracts: ContractRecord[]) {
-  try {
-    // Keep disk-backed session data bounded even when the database grows large.
-    const bounded = contracts.slice(0, CONTRACT_REALTIME_WINDOW);
-    window.sessionStorage.setItem(
-      SESSION_PREFIX + uid,
-      JSON.stringify(bounded.map(serializeContract)),
-    );
-  } catch {
-    // Performance cache only. Firestore remains the source of truth.
-  }
-}
-
-function retainSessionUser(uid: string) {
-  try {
-    for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
-      const key = window.sessionStorage.key(index);
-      if (key?.startsWith("stc-contracts-session-") && key !== SESSION_PREFIX + uid) {
+    for (let i = window.sessionStorage.length - 1; i >= 0; i -= 1) {
+      const key = window.sessionStorage.key(i);
+      if (key?.startsWith("stc-contracts-session-")) {
         window.sessionStorage.removeItem(key);
       }
     }
   } catch {
-    // Ignore storage restrictions.
+    // Browser storage may be disabled; no contract data is written there.
   }
 }
 
@@ -129,15 +70,7 @@ function mergeUnique(primary: ContractRecord[], secondary: ContractRecord[]) {
 
 export function clearContractSessionCache() {
   memoryByUser.clear();
-  if (typeof window === "undefined") return;
-  try {
-    for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
-      const key = window.sessionStorage.key(index);
-      if (key?.startsWith("stc-contracts-session-")) window.sessionStorage.removeItem(key);
-    }
-  } catch {
-    // Ignore storage restrictions.
-  }
+  purgeLegacyContractStorage();
 }
 
 export function ContractsProvider({ children }: { children: ReactNode }) {
@@ -287,7 +220,8 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
 
     if (!uid || !profile?.active) {
       uidRef.current = "";
-      if (!uid) clearContractSessionCache();
+      // A revoked profile must clear browser memory even if Firebase Auth stays signed in.
+      clearContractSessionCache();
       recentRef.current = [];
       olderRef.current = [];
       tailCursorRef.current = null;
@@ -303,9 +237,9 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
     }
 
     uidRef.current = uid;
-    retainSessionUser(uid);
-
-    const remembered = memoryByUser.get(uid) ?? readSession(uid);
+    purgeLegacyContractStorage();
+    // Only memory is cached. No business data persists across a page reload.
+    const remembered = memoryByUser.get(uid);
     if (remembered?.length) {
       const bounded = remembered.slice(0, CONTRACT_REALTIME_WINDOW);
       recentRef.current = bounded;
@@ -329,7 +263,6 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
         recentRef.current = page.contracts;
         setRecentContracts(page.contracts);
         memoryByUser.set(uid, page.contracts);
-        writeSession(uid, page.contracts);
 
         // Keep already loaded historical pages across realtime emissions.
         // createdAt is immutable, so newly-created/deleted recent contracts can
