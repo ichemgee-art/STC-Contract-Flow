@@ -132,17 +132,19 @@ export default function ContractDetailsPage() {
     setBusyStage(stage);
     setError("");
     try {
-      await updateContractStage(contract, stage, checked);
+      const changed = await updateContractStage(contract, stage, checked);
       if (cachedContract) {
         await refreshContract(contract.id);
       } else {
         setFallbackContract(await fetchContract(contract.id));
       }
-      if (checked && stage === "settlement") {
-        playUiSound("completed");
-        setShowCompletionCelebration(true);
-      } else {
-        playUiSound(checked ? "advance" : "reopen");
+      if (changed) {
+        if (checked && stage === "settlement") {
+          playUiSound("completed");
+          setShowCompletionCelebration(true);
+        } else {
+          playUiSound(checked ? "advance" : "reopen");
+        }
       }
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : t("updateStageError"));
