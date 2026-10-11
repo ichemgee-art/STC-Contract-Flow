@@ -168,17 +168,21 @@ service cloud.firestore {
           "createdByName"
         ])
         && data.salesRepresentative is string
-        && data.salesRepresentative.trim().size() >= 2
+        && data.salesRepresentative.size() >= 2
         && data.salesRepresentative.size() <= 100
+        && data.salesRepresentative.matches(".*[^\\s].*")
         && data.companyName is string
-        && data.companyName.trim().size() >= 2
+        && data.companyName.size() >= 2
         && data.companyName.size() <= 160
+        && data.companyName.matches(".*[^\\s].*")
         && data.contractType is string
-        && data.contractType.trim().size() >= 2
+        && data.contractType.size() >= 2
         && data.contractType.size() <= 120
+        && data.contractType.matches(".*[^\\s].*")
         && data.product is string
-        && data.product.trim().size() >= 1
+        && data.product.size() >= 1
         && data.product.size() <= 120
+        && data.product.matches(".*[^\\s].*")
         && data.createdBy is string
         && data.createdByName is string
         && data.createdByName.size() >= 1
@@ -408,8 +412,9 @@ service cloud.firestore {
             "createdByName"
           ])
           && request.resource.data.text is string
-          && request.resource.data.text.trim().size() >= 1
+          && request.resource.data.text.size() >= 1
           && request.resource.data.text.size() <= 2000
+          && request.resource.data.text.matches(".*[^\\s].*")
           && request.resource.data.createdAt == request.time
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.createdByName == get(memberPath()).data.displayName;
