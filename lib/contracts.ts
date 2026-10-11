@@ -471,8 +471,8 @@ export async function assignMissingContractNumbers(contracts: ContractRecord[]) 
         const createdAt = data.createdAt;
         const year =
           createdAt && typeof createdAt.toDate === "function"
-            ? createdAt.toDate().getUTCFullYear()
-            : new Date().getUTCFullYear();
+            ? cairoYear(createdAt.toDate())
+            : cairoYear();
         const identifier = legacyCompatibility
           ? await allocateLegacyContractNumber(transaction, year)
           : await allocateContractNumber(transaction, year, contract.id);
