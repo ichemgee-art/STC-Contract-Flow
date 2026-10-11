@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, ShieldAlert, Trash2, X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 type DeleteContractModalProps = {
   open: boolean;
@@ -22,15 +22,49 @@ export function DeleteContractModal({
   onCancel,
   onConfirm,
 }: DeleteContractModalProps) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     if (!open) return;
 
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.setTimeout(() => cancelRef.current?.focus(), 0);
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) onCancel();
+      if (event.key === "Escape" && !busy) {
+        event.preventDefault();
+        onCancel();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+      const controls = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+      if (!controls.length) return;
+
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus();
+    };
   }, [busy, onCancel, open]);
 
   if (!open) return null;
@@ -46,6 +80,7 @@ export function DeleteContractModal({
       }}
     >
       <section
+        ref={dialogRef}
         className="delete-modal-card"
         role="dialog"
         aria-modal="true"
@@ -106,6 +141,7 @@ export function DeleteContractModal({
 
         <div className="delete-modal-actions">
           <button
+            ref={cancelRef}
             type="button"
             className="button button-secondary delete-cancel-button"
             onClick={onCancel}
