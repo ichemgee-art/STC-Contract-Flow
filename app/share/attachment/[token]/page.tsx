@@ -63,7 +63,12 @@ export default async function AttachmentSharePage({
 
         {isPdf ? (
           <div className="share-pdf-shell">
-            <iframe src={fileUrl} title={payload.name} />
+            <iframe
+              src={fileUrl}
+              title={payload.name}
+              sandbox=""
+              referrerPolicy="no-referrer"
+            />
             <a className="share-open-file" href={fileUrl} target="_blank" rel="noreferrer">
               <FileText size={18} />
               فتح ملف PDF

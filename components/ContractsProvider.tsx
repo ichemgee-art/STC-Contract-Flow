@@ -122,7 +122,7 @@ function mergeUnique(primary: ContractRecord[], secondary: ContractRecord[]) {
   const byId = new Map<string, ContractRecord>();
   for (const contract of secondary) byId.set(contract.id, contract);
   for (const contract of primary) byId.set(contract.id, contract);
-  return [...byId.values()].sort(
+  return [...byId.values()].toSorted(
     (a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0),
   );
 }

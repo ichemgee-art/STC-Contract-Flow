@@ -73,31 +73,81 @@ service cloud.firestore {
       ]);
     }
 
+    function hasAnyContractIdentifier(data) {
+      return data.keys().hasAny([
+        "contractNumber",
+        "contractYear",
+        "contractSequence"
+      ]);
+    }
+
+    function paddedSequence(sequence) {
+      return sequence < 10
+        ? "000" + string(sequence)
+        : sequence < 100
+          ? "00" + string(sequence)
+          : sequence < 1000
+            ? "0" + string(sequence)
+            : string(sequence);
+    }
+
+    function expectedContractNumber(year, sequence) {
+      return "STC-" + string(year) + "-" + paddedSequence(sequence);
+    }
+
+    // Egypt is UTC+2 at New Year's midnight. Adding two hours before taking
+    // the year gives the business year used by STC even when Firestore's
+    // request.time is UTC.
+    function cairoYear(value) {
+      return (value + duration.value(2, "h")).year();
+    }
+
     function validContractIdentifier(data) {
-      return !hasContractIdentifier(data)
+      return !hasAnyContractIdentifier(data)
         || (
-          data.contractNumber is string
-          && data.contractNumber.matches("^STC-[0-9]{4}-[0-9]{4,}$")
+          hasContractIdentifier(data)
+          && data.contractNumber is string
           && data.contractYear is int
           && data.contractYear >= 2020
           && data.contractYear <= 2100
           && data.contractSequence is int
           && data.contractSequence >= 1
+          && data.contractSequence <= 999999999
+          && data.contractNumber == expectedContractNumber(
+            data.contractYear,
+            data.contractSequence
+          )
         );
     }
 
-    function identifierTransition(oldData, newData) {
+    function reservationPath(contractNumber) {
+      return /databases/$(database)/documents/contractNumberReservations/$(contractNumber);
+    }
+
+    function validReservationAfter(contractId, data) {
+      return existsAfter(reservationPath(data.contractNumber))
+        && getAfter(reservationPath(data.contractNumber)).data.contractId == contractId
+        && getAfter(reservationPath(data.contractNumber)).data.year == data.contractYear
+        && getAfter(reservationPath(data.contractNumber)).data.sequence == data.contractSequence;
+    }
+
+    function identifierTransition(contractId, oldData, newData) {
+      let oldHasAny = hasAnyContractIdentifier(oldData);
       let oldHas = hasContractIdentifier(oldData);
+      let newHasAny = hasAnyContractIdentifier(newData);
       let newHas = hasContractIdentifier(newData);
 
       return (
-          !oldHas
-          && !newHas
+          !oldHasAny
+          && !newHasAny
         )
         || (
-          !oldHas
+          !oldHasAny
           && newHas
+          && admin()
+          && newData.contractYear == cairoYear(oldData.createdAt)
           && validContractIdentifier(newData)
+          && validReservationAfter(contractId, newData)
         )
         || (
           oldHas
@@ -127,15 +177,19 @@ service cloud.firestore {
         && data.salesRepresentative is string
         && data.salesRepresentative.size() >= 2
         && data.salesRepresentative.size() <= 100
+        && data.salesRepresentative.matches(".*[^\\s].*")
         && data.companyName is string
         && data.companyName.size() >= 2
         && data.companyName.size() <= 160
+        && data.companyName.matches(".*[^\\s].*")
         && data.contractType is string
         && data.contractType.size() >= 2
         && data.contractType.size() <= 120
+        && data.contractType.matches(".*[^\\s].*")
         && data.product is string
         && data.product.size() >= 1
         && data.product.size() <= 120
+        && data.product.matches(".*[^\\s].*")
         && data.createdBy is string
         && data.createdByName is string
         && data.createdByName.size() >= 1
@@ -330,6 +384,8 @@ service cloud.firestore {
       allow create: if activeMember()
         && hasContractIdentifier(request.resource.data)
         && validContract(request.resource.data)
+        && request.resource.data.contractYear == cairoYear(request.time)
+        && validReservationAfter(contractId, request.resource.data)
         && pristineWorkflow(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.createdByName == get(memberPath()).data.displayName
@@ -342,15 +398,20 @@ service cloud.firestore {
         && request.resource.data.createdByName == resource.data.createdByName
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time
-        && identifierTransition(resource.data, request.resource.data)
+        && identifierTransition(contractId, resource.data, request.resource.data)
         && validStageTransitions(resource.data, request.resource.data);
 
       allow delete: if admin();
 
       match /notes/{noteId} {
-        allow read: if activeMember();
+        allow read: if activeMember()
+          && (
+            admin()
+            || exists(/databases/$(database)/documents/contracts/$(contractId))
+          );
 
         allow create: if activeMember()
+          && exists(/databases/$(database)/documents/contracts/$(contractId))
           && request.resource.data.keys().hasOnly([
             "text",
             "createdAt",
@@ -360,6 +421,7 @@ service cloud.firestore {
           && request.resource.data.text is string
           && request.resource.data.text.size() >= 1
           && request.resource.data.text.size() <= 2000
+          && request.resource.data.text.matches(".*[^\\s].*")
           && request.resource.data.createdAt == request.time
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.createdByName == get(memberPath()).data.displayName;
@@ -369,27 +431,129 @@ service cloud.firestore {
         allow delete: if activeMember()
           && (
             admin()
-            || resource.data.createdBy == request.auth.uid
+            || (
+              exists(/databases/$(database)/documents/contracts/$(contractId))
+              && resource.data.createdBy == request.auth.uid
+            )
           );
       }
+    }
+
+    match /contractNumberReservations/{contractNumber} {
+      allow read: if admin();
+
+      allow create: if activeMember()
+        && request.resource.data.keys().hasOnly([
+          "contractId",
+          "year",
+          "sequence",
+          "createdAt"
+        ])
+        && request.resource.data.contractId is string
+        && request.resource.data.contractId.size() >= 1
+        && request.resource.data.contractId.size() <= 160
+        && request.resource.data.year is int
+        && request.resource.data.year >= 2020
+        && request.resource.data.year <= 2100
+        && request.resource.data.sequence is int
+        && request.resource.data.sequence >= 1
+        && request.resource.data.sequence <= 999999999
+        && contractNumber == expectedContractNumber(
+          request.resource.data.year,
+          request.resource.data.sequence
+        )
+        && request.resource.data.createdAt == request.time
+        && existsAfter(
+          /databases/$(database)/documents/contracts/$(request.resource.data.contractId)
+        )
+        && getAfter(
+          /databases/$(database)/documents/contracts/$(request.resource.data.contractId)
+        ).data.contractNumber == contractNumber
+        && getAfter(
+          /databases/$(database)/documents/contracts/$(request.resource.data.contractId)
+        ).data.contractYear == request.resource.data.year
+        && getAfter(
+          /databases/$(database)/documents/contracts/$(request.resource.data.contractId)
+        ).data.contractSequence == request.resource.data.sequence
+        && existsAfter(
+          /databases/$(database)/documents/contractCounters/$(string(request.resource.data.year))
+        )
+        && getAfter(
+          /databases/$(database)/documents/contractCounters/$(string(request.resource.data.year))
+        ).data.value == request.resource.data.sequence
+        && getAfter(
+          /databases/$(database)/documents/contractCounters/$(string(request.resource.data.year))
+        ).data.lastReservation == contractNumber
+        && getAfter(
+          /databases/$(database)/documents/contractCounters/$(string(request.resource.data.year))
+        ).data.lastContractId == request.resource.data.contractId;
+
+      allow update, delete: if false;
     }
 
     match /contractCounters/{counterId} {
       allow read: if activeMember();
 
       allow create: if activeMember()
-        && request.resource.data.keys().hasOnly(["year", "value", "updatedAt"])
+        && request.resource.data.keys().hasOnly([
+          "year",
+          "value",
+          "lastReservation",
+          "lastContractId",
+          "updatedAt"
+        ])
+        && request.resource.data.keys().hasAll([
+          "year",
+          "value",
+          "lastReservation",
+          "lastContractId",
+          "updatedAt"
+        ])
         && request.resource.data.year is int
+        && counterId == string(request.resource.data.year)
         && request.resource.data.year >= 2020
         && request.resource.data.year <= 2100
         && request.resource.data.value == 1
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.lastReservation is string
+        && request.resource.data.lastContractId is string
+        && request.resource.data.updatedAt == request.time
+        && existsAfter(reservationPath(request.resource.data.lastReservation))
+        && getAfter(reservationPath(request.resource.data.lastReservation)).data.contractId
+          == request.resource.data.lastContractId
+        && getAfter(reservationPath(request.resource.data.lastReservation)).data.year
+          == request.resource.data.year
+        && getAfter(reservationPath(request.resource.data.lastReservation)).data.sequence
+          == request.resource.data.value;
 
       allow update: if activeMember()
-        && request.resource.data.keys().hasOnly(["year", "value", "updatedAt"])
+        && request.resource.data.keys().hasOnly([
+          "year",
+          "value",
+          "lastReservation",
+          "lastContractId",
+          "updatedAt"
+        ])
+        && request.resource.data.keys().hasAll([
+          "year",
+          "value",
+          "lastReservation",
+          "lastContractId",
+          "updatedAt"
+        ])
         && request.resource.data.year == resource.data.year
+        && counterId == string(request.resource.data.year)
         && request.resource.data.value == resource.data.value + 1
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.value <= 999999999
+        && request.resource.data.lastReservation is string
+        && request.resource.data.lastContractId is string
+        && request.resource.data.updatedAt == request.time
+        && existsAfter(reservationPath(request.resource.data.lastReservation))
+        && getAfter(reservationPath(request.resource.data.lastReservation)).data.contractId
+          == request.resource.data.lastContractId
+        && getAfter(reservationPath(request.resource.data.lastReservation)).data.year
+          == request.resource.data.year
+        && getAfter(reservationPath(request.resource.data.lastReservation)).data.sequence
+          == request.resource.data.value;
 
       allow delete: if false;
     }

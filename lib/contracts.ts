@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   doc,
   getCountFromServer,
@@ -12,7 +11,6 @@ import {
   runTransaction,
   serverTimestamp,
   startAfter,
-  updateDoc,
   type DocumentData,
   type DocumentSnapshot,
   type QueryDocumentSnapshot,
@@ -132,7 +130,71 @@ function formatContractNumber(year: number, sequence: number) {
   return `STC-${year}-${String(sequence).padStart(4, "0")}`;
 }
 
+function cairoYear(value = new Date()) {
+  return Number(
+    new Intl.DateTimeFormat("en", {
+      timeZone: "Africa/Cairo",
+      year: "numeric",
+    }).format(value),
+  );
+}
+
 async function allocateContractNumber(
+  transaction: Transaction,
+  year: number,
+  contractId: string,
+) {
+  const counterRef = doc(db, "contractCounters", String(year));
+  const counterSnapshot = await transaction.get(counterRef);
+  const current = counterSnapshot.exists()
+    ? Number(counterSnapshot.data().value ?? 0)
+    : 0;
+
+  if (!Number.isSafeInteger(current) || current < 0) {
+    throw new Error("Contract counter is invalid.");
+  }
+
+  const next = current + 1;
+  const contractNumber = formatContractNumber(year, next);
+  const reservationRef = doc(db, "contractNumberReservations", contractNumber);
+
+  transaction.set(reservationRef, {
+    contractId,
+    year,
+    sequence: next,
+    createdAt: serverTimestamp(),
+  });
+
+  transaction.set(counterRef, {
+    year,
+    value: next,
+    lastReservation: contractNumber,
+    lastContractId: contractId,
+    updatedAt: serverTimestamp(),
+  });
+
+  return {
+    contractNumber,
+    contractYear: year,
+    contractSequence: next,
+  };
+}
+
+function isPermissionDenied(error: unknown) {
+  return Boolean(
+    error
+    && typeof error === "object"
+    && "code" in error
+    && String((error as { code?: unknown }).code).endsWith("permission-denied"),
+  );
+}
+
+// Temporary rollout compatibility: the currently published production rules
+// predate contractNumberReservations. The new transaction is always attempted
+// first. If only the old rules reject that reservation write, retry the old
+// atomic counter+contract shape. Once the hardened rules are published this
+// fallback is denied by those rules and cannot bypass reservation enforcement.
+async function allocateLegacyContractNumber(
   transaction: Transaction,
   year: number,
 ) {
@@ -141,8 +203,12 @@ async function allocateContractNumber(
   const current = counterSnapshot.exists()
     ? Number(counterSnapshot.data().value ?? 0)
     : 0;
-  const next = current + 1;
 
+  if (!Number.isSafeInteger(current) || current < 0) {
+    throw new Error("Contract counter is invalid.");
+  }
+
+  const next = current + 1;
   transaction.set(counterRef, {
     year,
     value: next,
@@ -156,6 +222,7 @@ async function allocateContractNumber(
   };
 }
 
+
 export async function createContract(
   input: ContractInput,
   user: { uid: string; displayName: string },
@@ -163,22 +230,32 @@ export async function createContract(
   const stages = Object.fromEntries(STAGE_KEYS.map((key) => [key, false])) as ContractStages;
   const stageDates = Object.fromEntries(STAGE_KEYS.map((key) => [key, null]));
   const contractRef = doc(contractsRef);
-  const year = new Date().getFullYear();
+  const year = cairoYear();
 
-  await runTransaction(db, async (transaction) => {
-    const identifier = await allocateContractNumber(transaction, year);
+  const writeContract = async (legacyCompatibility = false) =>
+    runTransaction(db, async (transaction) => {
+      const identifier = legacyCompatibility
+        ? await allocateLegacyContractNumber(transaction, year)
+        : await allocateContractNumber(transaction, year, contractRef.id);
 
-    transaction.set(contractRef, {
-      ...input,
-      ...identifier,
-      stages,
-      stageDates,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      createdBy: user.uid,
-      createdByName: user.displayName,
+      transaction.set(contractRef, {
+        ...input,
+        ...identifier,
+        stages,
+        stageDates,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: user.uid,
+        createdByName: user.displayName,
+      });
     });
-  });
+
+  try {
+    await writeContract(false);
+  } catch (error) {
+    if (!isPermissionDenied(error)) throw error;
+    await writeContract(true);
+  }
 
   return contractRef;
 }
@@ -189,10 +266,31 @@ export async function getContract(id: string) {
   return fromSnapshot(snapshot);
 }
 
-export async function updateContractBasics(id: string, input: ContractInput) {
-  return updateDoc(doc(db, "contracts", id), {
-    ...input,
-    updatedAt: serverTimestamp(),
+export async function updateContractBasics(
+  contract: ContractRecord,
+  input: ContractInput,
+) {
+  const contractRef = doc(db, "contracts", contract.id);
+  const expectedUpdatedAt = contract.updatedAt?.toMillis() ?? null;
+
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(contractRef);
+    if (!snapshot.exists()) throw new Error("Contract no longer exists.");
+
+    const currentUpdatedAt = snapshot.data().updatedAt;
+    const currentUpdatedAtMs =
+      currentUpdatedAt && typeof currentUpdatedAt.toMillis === "function"
+        ? currentUpdatedAt.toMillis()
+        : null;
+
+    if (currentUpdatedAtMs !== expectedUpdatedAt) {
+      throw new Error("Contract changed while you were editing. Refresh and try again.");
+    }
+
+    transaction.update(contractRef, {
+      ...input,
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
@@ -224,7 +322,7 @@ export async function updateContractStage(contract: ContractRecord, stage: Stage
     // A realtime snapshot can be a few milliseconds behind another user's edit.
     // Always decide against the latest Firestore state so one user cannot
     // accidentally overwrite another user's workflow progress.
-    if (currentStages[stage] === checked) return;
+    if (currentStages[stage] === checked) return false;
 
     const nextStages = { ...currentStages };
     const nextDates: Record<StageKey, unknown> = { ...currentDates };
@@ -259,6 +357,7 @@ export async function updateContractStage(contract: ContractRecord, stage: Stage
       stageDates: nextDates,
       updatedAt: serverTimestamp(),
     });
+    return true;
   });
 }
 
@@ -280,6 +379,19 @@ export async function deleteContract(id: string) {
     });
 
     if (response.ok) {
+      const payload = await response.json().catch(() => null) as {
+        attachmentCleanupPending?: number;
+        notesCleanupPending?: boolean;
+      } | null;
+      const cleanupPending =
+        Boolean(payload?.notesCleanupPending)
+        || Number(payload?.attachmentCleanupPending ?? 0) > 0;
+
+      if (cleanupPending && attempt < retryDelays.length) {
+        await new Promise((resolve) => window.setTimeout(resolve, retryDelays[attempt]));
+        continue;
+      }
+
       // Deleted contract images must not remain readable from the local private
       // image cache after the record itself is gone.
       await clearAttachmentCaches();
@@ -336,7 +448,7 @@ export async function getContractSummary() {
 export async function assignMissingContractNumbers(contracts: ContractRecord[]) {
   const missing = contracts
     .filter((contract) => !contract.contractNumber)
-    .sort(
+    .toSorted(
       (a, b) =>
         (a.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER)
         - (b.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER),
@@ -347,26 +459,37 @@ export async function assignMissingContractNumbers(contracts: ContractRecord[]) 
   for (const contract of missing) {
     const contractRef = doc(db, "contracts", contract.id);
 
-    const changed = await runTransaction(db, async (transaction) => {
-      const snapshot = await transaction.get(contractRef);
-      if (!snapshot.exists()) return false;
+    const assign = async (legacyCompatibility = false) =>
+      runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(contractRef);
+        if (!snapshot.exists()) return false;
 
-      const data = snapshot.data();
-      if (data.contractNumber) return false;
+        const data = snapshot.data();
+        if (data.contractNumber) return false;
 
-      const createdAt = data.createdAt;
-      const year =
-        createdAt && typeof createdAt.toDate === "function"
-          ? createdAt.toDate().getFullYear()
-          : new Date().getFullYear();
-      const identifier = await allocateContractNumber(transaction, year);
+        const createdAt = data.createdAt;
+        const year =
+          createdAt && typeof createdAt.toDate === "function"
+            ? cairoYear(createdAt.toDate())
+            : cairoYear();
+        const identifier = legacyCompatibility
+          ? await allocateLegacyContractNumber(transaction, year)
+          : await allocateContractNumber(transaction, year, contract.id);
 
-      transaction.update(contractRef, {
-        ...identifier,
-        updatedAt: serverTimestamp(),
+        transaction.update(contractRef, {
+          ...identifier,
+          updatedAt: serverTimestamp(),
+        });
+        return true;
       });
-      return true;
-    });
+
+    let changed: boolean;
+    try {
+      changed = await assign(false);
+    } catch (error) {
+      if (!isPermissionDenied(error)) throw error;
+      changed = await assign(true);
+    }
 
     if (changed) assigned += 1;
   }

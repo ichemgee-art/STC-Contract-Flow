@@ -5,7 +5,13 @@ import {
   signOut,
   type User,
 } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  type DocumentData,
+  type DocumentSnapshot,
+} from "firebase/firestore";
 import {
   createContext,
   useContext,
@@ -28,18 +34,34 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-async function loadProfile(uid: string) {
-  const snapshot = await getDoc(doc(db, "users", uid));
+function profileFromSnapshot(
+  uid: string,
+  snapshot: DocumentSnapshot<DocumentData>,
+): UserProfile | null {
   if (!snapshot.exists()) return null;
 
   const data = snapshot.data();
+  const role =
+    data.role === "admin"
+      ? "admin"
+      : data.role === "editor"
+        ? "editor"
+        : null;
+
+  if (!role) return null;
+
   return {
     uid,
-    displayName: data.displayName ?? "STC User",
-    email: data.email ?? "",
-    role: data.role === "admin" ? "admin" : "editor",
+    displayName: typeof data.displayName === "string" ? data.displayName : "STC User",
+    email: typeof data.email === "string" ? data.email : "",
+    role,
     active: data.active === true,
-  } satisfies UserProfile;
+  };
+}
+
+async function loadProfile(uid: string) {
+  const snapshot = await getDoc(doc(db, "users", uid));
+  return profileFromSnapshot(uid, snapshot);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -58,27 +80,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (nextUser) => {
+    let unsubscribeProfile: () => void = () => {};
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (nextUser) => {
+      unsubscribeProfile();
+      unsubscribeProfile = () => {};
       setUser(nextUser);
+
       if (!nextUser) {
         await clearAttachmentCaches();
         setProfile(null);
         setLoading(false);
         return;
       }
+
       const uid = nextUser.uid;
       setProfile(null);
+      setLoading(true);
 
       // Keep private cache cleanup off the critical render path.
       void retainAttachmentUser(uid).catch(() => undefined);
 
-      try {
-        const nextProfile = await loadProfile(uid);
-        if (auth.currentUser?.uid === uid) setProfile(nextProfile);
-      } finally {
-        if (auth.currentUser?.uid === uid) setLoading(false);
-      }
+      unsubscribeProfile = onSnapshot(
+        doc(db, "users", uid),
+        (snapshot) => {
+          if (auth.currentUser?.uid !== uid) return;
+          const nextProfile = profileFromSnapshot(uid, snapshot);
+          setProfile(nextProfile);
+          setLoading(false);
+
+          // A disabled/deleted profile must not leave private attachment bytes
+          // available in the browser cache while the Firebase Auth session lives.
+          if (!nextProfile?.active) {
+            void clearAttachmentCaches().catch(() => undefined);
+          }
+        },
+        () => {
+          if (auth.currentUser?.uid !== uid) return;
+          setProfile(null);
+          setLoading(false);
+          void clearAttachmentCaches().catch(() => undefined);
+        },
+      );
     });
+
+    return () => {
+      unsubscribeProfile();
+      unsubscribeAuth();
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(

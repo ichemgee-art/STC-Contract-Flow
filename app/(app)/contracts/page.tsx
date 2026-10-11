@@ -251,13 +251,15 @@ export default function ContractsPage() {
     setBusy(contract.id + ":" + key);
     setError("");
     try {
-      await updateContractStage(contract, key, checked);
+      const changed = await updateContractStage(contract, key, checked);
       await refreshContract(contract.id);
-      if (checked && key === "settlement") {
-        playUiSound("completed");
-        setShowCompletionCelebration(true);
-      } else {
-        playUiSound(checked ? "advance" : "reopen");
+      if (changed) {
+        if (checked && key === "settlement") {
+          playUiSound("completed");
+          setShowCompletionCelebration(true);
+        } else {
+          playUiSound(checked ? "advance" : "reopen");
+        }
       }
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : t("updateStageError"));

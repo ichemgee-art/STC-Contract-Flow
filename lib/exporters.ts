@@ -52,9 +52,15 @@ function statusTone(value: ExportValue) {
   return "neutral";
 }
 
+function safeExcelValue(value: ExportValue): ExportValue {
+  if (typeof value !== "string") return value;
+  return /^[=+\-@]/.test(value) ? "'" + value : value;
+}
+
 function bodyCell(key: string, value: ExportValue, index: number) {
+  const safeValue = safeExcelValue(value);
   const cell: Record<string, unknown> = {
-    value: value == null ? "" : value,
+    value: safeValue == null ? "" : safeValue,
     backgroundColor: index % 2 ? COLORS.soft : COLORS.white,
     textColor: COLORS.text,
     align: typeof value === "number" ? "center" : "right",
@@ -326,7 +332,6 @@ function displayValue(value: ExportValue, locale: string) {
 }
 
 export async function exportPdf({
-  filename,
   title,
   subtitle,
   sheets,
@@ -524,7 +529,7 @@ td.tone-danger { background: #FDECEC !important; color: #D64545 !important; font
   window.addEventListener("load", () => setTimeout(runPrint, 160));
   window.addEventListener("afterprint", () => setTimeout(() => window.close(), 200));
 })();
-<\/script>
+</script>
 </body>
 </html>`);
   popup.document.close();

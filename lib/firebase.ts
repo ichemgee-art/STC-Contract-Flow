@@ -17,15 +17,15 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 const firebaseGlobal = globalThis as typeof globalThis & {
-  __stcFirebaseEmulatorsConnected?: boolean;
+  stcFirebaseEmulatorsConnected?: boolean;
 };
 
 if (
   typeof window !== "undefined"
   && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true"
-  && !firebaseGlobal.__stcFirebaseEmulatorsConnected
+  && !firebaseGlobal.stcFirebaseEmulatorsConnected
 ) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
-  firebaseGlobal.__stcFirebaseEmulatorsConnected = true;
+  firebaseGlobal.stcFirebaseEmulatorsConnected = true;
 }

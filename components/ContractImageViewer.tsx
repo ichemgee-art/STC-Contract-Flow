@@ -73,7 +73,12 @@ export function ContractImageViewer({ src, name, contentType, ar, onClose, onDow
       </div></header>
       {isPdf ? (
         <div className="document-pdf-viewport">
-          <iframe src={src} title={name} />
+          <iframe
+            src={src}
+            title={name}
+            sandbox=""
+            referrerPolicy="no-referrer"
+          />
         </div>
       ) : (
         <>

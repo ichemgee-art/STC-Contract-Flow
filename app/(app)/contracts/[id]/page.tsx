@@ -132,17 +132,19 @@ export default function ContractDetailsPage() {
     setBusyStage(stage);
     setError("");
     try {
-      await updateContractStage(contract, stage, checked);
+      const changed = await updateContractStage(contract, stage, checked);
       if (cachedContract) {
         await refreshContract(contract.id);
       } else {
         setFallbackContract(await fetchContract(contract.id));
       }
-      if (checked && stage === "settlement") {
-        playUiSound("completed");
-        setShowCompletionCelebration(true);
-      } else {
-        playUiSound(checked ? "advance" : "reopen");
+      if (changed) {
+        if (checked && stage === "settlement") {
+          playUiSound("completed");
+          setShowCompletionCelebration(true);
+        } else {
+          playUiSound(checked ? "advance" : "reopen");
+        }
       }
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : t("updateStageError"));
@@ -156,15 +158,24 @@ export default function ContractDetailsPage() {
     setSaving(true);
     setError("");
     try {
-      await updateContractBasics(contract.id, input);
+      await updateContractBasics(contract, input);
       if (cachedContract) {
         await refreshContract(contract.id);
       } else {
         setFallbackContract(await fetchContract(contract.id));
       }
       setEditing(false);
-    } catch {
-      setError(t("saveChangesError"));
+    } catch (saveError) {
+      const stale =
+        saveError instanceof Error
+        && /changed while you were editing/i.test(saveError.message);
+      setError(
+        stale
+          ? language === "ar"
+            ? "تم تعديل العقد من مستخدم آخر أثناء التعديل. حدّث البيانات وحاول مرة أخرى."
+            : "This contract changed while you were editing. Refresh and try again."
+          : t("saveChangesError"),
+      );
     } finally {
       setSaving(false);
     }
