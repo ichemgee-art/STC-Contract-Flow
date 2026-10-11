@@ -12,6 +12,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { ContractAttachments } from "@/components/ContractAttachments";
+import { ContractAuditTimeline } from "@/components/ContractAuditTimeline";
 import { ContractNotes } from "@/components/ContractNotes";
 import { ContractReportButton } from "@/components/ContractReportButton";
 import { useContracts } from "@/components/ContractsProvider";
@@ -386,6 +387,8 @@ export default function ContractDetailsPage() {
       <ContractAttachments contractId={contract.id} />
 
       <ContractNotes contractId={contract.id} />
+
+      {profile?.role === "admin" ? <ContractAuditTimeline contractId={contract.id} /> : null}
 
       <section className="detail-grid">
         <article className="workflow-card card">
