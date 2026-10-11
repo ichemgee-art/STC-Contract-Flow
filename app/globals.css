@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
   --navy-950: #071f32;
@@ -834,7 +834,7 @@ button {
 
 /* Language and RTL support */
 html[lang="ar"] body {
-  font-family: "Cairo", Tahoma, Arial, sans-serif;
+  font-family: var(--font-cairo), "Cairo", Tahoma, Arial, sans-serif;
 }
 
 html[lang="ar"] .eyebrow,
