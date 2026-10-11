@@ -350,7 +350,7 @@ export async function GET(
         uploadedAt: blob.uploadedAt,
         contentType: inferContentType(blob.pathname),
       }))
-      .sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+      .toSorted((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
 
     return NextResponse.json(
       { attachments },
