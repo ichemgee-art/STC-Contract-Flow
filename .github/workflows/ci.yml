@@ -42,10 +42,19 @@ jobs:
           if gh api "repos/${{ github.repository }}/contents/package-lock.json?ref=${HEAD_REF}" >/dev/null 2>&1; then
             exit 0
           fi
+          python - <<'PY'
+          import base64, json, os
+          with open("package-lock.json", "rb") as source:
+              content = base64.b64encode(source.read()).decode("ascii")
+          with open("/tmp/package-lock-payload.json", "w", encoding="utf-8") as target:
+              json.dump({
+                  "message": "Lock audited dependencies",
+                  "branch": os.environ["HEAD_REF"],
+                  "content": content,
+              }, target)
+          PY
           gh api --method PUT "repos/${{ github.repository }}/contents/package-lock.json" \
-            -f message="Lock audited dependencies" \
-            -f branch="${HEAD_REF}" \
-            -f content="$(base64 -w0 package-lock.json)"
+            --input /tmp/package-lock-payload.json
 
       - name: Lint
         run: npm run lint
