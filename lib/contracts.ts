@@ -380,6 +380,19 @@ export async function deleteContract(id: string) {
     });
 
     if (response.ok) {
+      const payload = await response.json().catch(() => null) as {
+        attachmentCleanupPending?: number;
+        notesCleanupPending?: boolean;
+      } | null;
+      const cleanupPending =
+        Boolean(payload?.notesCleanupPending)
+        || Number(payload?.attachmentCleanupPending ?? 0) > 0;
+
+      if (cleanupPending && attempt < retryDelays.length) {
+        await new Promise((resolve) => window.setTimeout(resolve, retryDelays[attempt]));
+        continue;
+      }
+
       // Deleted contract images must not remain readable from the local private
       // image cache after the record itself is gone.
       await clearAttachmentCaches();
