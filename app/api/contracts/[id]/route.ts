@@ -1,7 +1,8 @@
-import { del, list } from "@vercel/blob";
+import { del, list, put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { acquireAttachmentLock } from "@/lib/attachmentLock";
 import { requireActiveMember } from "@/lib/serverAuth";
+import { contractTombstonePath } from "@/lib/contractDeletion";
 
 export const runtime = "nodejs";
 
@@ -144,10 +145,34 @@ export async function DELETE(
           abortSignal: AbortSignal.timeout(30_000),
         });
 
+    const tombstonePath = contractTombstonePath(id);
+    let tombstoneCreated = false;
+
+    if (!emulatorMode) {
+      await put(
+        tombstonePath,
+        JSON.stringify({ contractId: id, deletedAt: new Date().toISOString() }),
+        {
+          access: "private",
+          addRandomSuffix: false,
+          allowOverwrite: true,
+          contentType: "application/json",
+          abortSignal: AbortSignal.timeout(15_000),
+        },
+      );
+      tombstoneCreated = true;
+    }
+
     // Delete the parent first. Hardened Firestore rules deny new note creation
-    // once the parent is gone, closing the create-note-vs-delete race.
+    // once the parent is gone, closing the create-note-vs-delete race. The
+    // private Blob tombstone makes every pre-existing QR token fail immediately,
+    // even if attachment cleanup later has a transient failure.
     const deletion = await deleteFirestoreContract(id, token);
     if (!deletion.ok && deletion.status !== 404) {
+      if (tombstoneCreated) {
+        await del(tombstonePath).catch(() => undefined);
+      }
+
       const status = deletion.status === 403 ? 403 : 500;
       return NextResponse.json(
         { error: "Could not delete contract." },
