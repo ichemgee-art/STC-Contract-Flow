@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
   --navy-950: #071f32;
@@ -834,7 +834,7 @@ button {
 
 /* Language and RTL support */
 html[lang="ar"] body {
-  font-family: "Tajawal", Tahoma, Arial, sans-serif;
+  font-family: "Cairo", Tahoma, Arial, sans-serif;
 }
 
 html[lang="ar"] .eyebrow,
@@ -1219,46 +1219,4 @@ html[dir="rtl"] .notification-toggle.active::after {
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-
-/* 2026 Arabic typography update: match the cleaner reference interface.
-   Preserve Inter in English mode and keep RTL without negative tracking. */
-html[lang="ar"] body {
-  font-family: "Tajawal", Tahoma, Arial, sans-serif;
-  font-weight: 500;
-  line-height: 1.65;
-}
-
-html[lang="ar"] h1,
-html[lang="ar"] h2,
-html[lang="ar"] h3,
-html[lang="ar"] strong {
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
-html[lang="ar"] .hero-copy h2,
-html[lang="ar"] .page-intro h2 {
-  line-height: 1.25;
-  letter-spacing: 0;
-}
-
-.brand-lockup strong { font-size: 16px; }
-.brand-lockup span { font-size: 11.5px; }
-.nav-link { font-size: 15px; }
-.sidebar-user-copy strong { font-size: 14px; }
-.sidebar-user-copy span { font-size: 12px; }
-.topbar-kicker { font-size: 10.5px; }
-.topbar h1 { font-size: 23px; }
-.button { font-size: 14px; }
-.language-switch { font-size: 13px; }
-.eyebrow { font-size: 12px; }
-.page-intro p { font-size: 14.5px; }
-
-@media (max-width: 620px) {
-  .topbar h1 { font-size: 20px; }
-  .page-intro h2 { font-size: 25px; }
-  .nav-link { font-size: 15px; }
-  .button { font-size: 14px; }
-  .eyebrow { font-size: 11.5px; }
 }
