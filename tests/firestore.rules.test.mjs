@@ -539,3 +539,72 @@ test("admins can delete orphan notes for retryable cleanup", async () => {
   await assertFails(getDoc(doc(editorDb, "contracts", "gone", "notes", "orphan")));
   await assertSucceeds(deleteDoc(doc(adminDb, "contracts", "gone", "notes", "orphan")));
 });
+
+for (const reconciled of [false, true]) {
+  test(`numbering continues above a ${reconciled ? "reconciled" : "legacy"} counter without renumbering existing contracts`, async () => {
+    const year = new Date().getUTCFullYear();
+    const number = formatNumber(year, 3);
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "contracts", "legacy-numbered"), contractBody({
+        uid: EDITOR_UID,
+        displayName: EDITOR_NAME,
+        year,
+        sequence: 3,
+      }));
+      await setDoc(doc(db, "contractCounters", String(year)), {
+        year,
+        value: 3,
+        updatedAt: Timestamp.now(),
+        ...(reconciled ? {
+          lastReservation: number,
+          lastContractId: "legacy-numbered",
+        } : {}),
+      });
+      if (reconciled) {
+        await setDoc(doc(db, "contractNumberReservations", number), {
+          contractId: "legacy-numbered",
+          year,
+          sequence: 3,
+          createdAt: Timestamp.now(),
+        });
+      }
+    });
+
+    const editorDb = testEnv.authenticatedContext(EDITOR_UID).firestore();
+    const ref = await assertSucceeds(createReservedContract(editorDb, { id: "next-contract", year }));
+    const contract = (await getDoc(ref)).data();
+    assert.equal(contract.contractNumber, formatNumber(year, 4));
+    const counter = (await getDoc(doc(editorDb, "contractCounters", String(year)))).data();
+    assert.equal(counter.value, 4);
+    assert.equal(counter.lastReservation, formatNumber(year, 4));
+    assert.equal(counter.lastContractId, ref.id);
+    const nextReservation = (await getDoc(doc(editorDb, "contractNumberReservations", formatNumber(year, 4)))).data();
+    assert.equal(nextReservation.contractId, ref.id);
+    const legacy = (await getDoc(doc(editorDb, "contracts", "legacy-numbered"))).data();
+    assert.equal(legacy.contractNumber, number);
+    assert.equal(legacy.contractSequence, 3);
+
+    if (reconciled) {
+      const reservationRef = doc(editorDb, "contractNumberReservations", number);
+      assert.equal((await getDoc(reservationRef)).data().contractId, "legacy-numbered");
+      await assertFails(updateDoc(reservationRef, { contractId: ref.id }));
+      const adminDb = testEnv.authenticatedContext(ADMIN_UID).firestore();
+      await assertFails(deleteDoc(doc(adminDb, "contractNumberReservations", number)));
+    }
+  });
+}
+
+test("counter high-water mark is preserved when earlier contracts are absent", async () => {
+  const year = new Date().getUTCFullYear();
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "contractCounters", String(year)), {
+      year,
+      value: 7,
+      updatedAt: Timestamp.now(),
+    });
+  });
+  const editorDb = testEnv.authenticatedContext(EDITOR_UID).firestore();
+  const ref = await assertSucceeds(createReservedContract(editorDb, { year }));
+  assert.equal((await getDoc(ref)).data().contractNumber, formatNumber(year, 8));
+});

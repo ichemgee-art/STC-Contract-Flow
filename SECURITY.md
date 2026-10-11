@@ -55,19 +55,20 @@ Only public Firebase web configuration may use `NEXT_PUBLIC_`.
 
 `ATTACHMENT_SHARE_SECRET` must be at least 32 characters and server-only. During rotation, the prior value can temporarily be supplied as `ATTACHMENT_SHARE_SECRET_PREVIOUS` so already-issued 30-minute links remain valid.
 
-## Production rollout for hardened numbering rules
+## Numbering rule deployment prerequisite
 
-The application contains a temporary compatibility fallback so it can be deployed while the currently published Firestore rules still use the older counter shape.
+The application uses only the atomic reservation transaction. A permission denial
+is returned to the caller; it is never retried using the older counter shape.
 
-Safe rollout:
+The hardened `firestore.rules` must be live before deploying this application.
+The production rules for `stc-contract-flow` were checked against the repository
+on 2026-10-11. Recheck the target project whenever deploying elsewhere.
 
-1. Deploy the application version from this security change and verify normal contract creation.
-2. Publish the hardened `firestore.rules` and `firestore.indexes.json` to the production Firebase project.
-3. Create one smoke-test contract and verify its matching reservation document exists.
-4. Re-run the Firestore Rules test suite.
-5. Remove the temporary legacy-numbering compatibility fallback in a later cleanup after the hardened rules are confirmed live.
-
-Do not publish the hardened rules before the compatible application is live, because older clients do not create reservation documents.
+For already-numbered legacy contracts, preserve the contract identifier and the
+counter high-water mark. Reconcile missing reservation documents through a
+privileged, reviewed maintenance operation; do not reset a counter to the count
+of surviving contracts. Gaps may represent previously deleted numbers. A missing
+legacy reservation alone is not evidence of a duplicate number.
 
 ## Environment isolation
 
