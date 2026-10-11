@@ -259,7 +259,7 @@ td.num { width: 28px; text-align: center; font-weight: 800; }
   window.addEventListener("load", () => setTimeout(printWhenReady, 180));
   window.addEventListener("afterprint", () => setTimeout(() => window.close(), 200));
 })();
-<\/script>
+</script>
 </body>
 </html>`);
   popup.document.close();
