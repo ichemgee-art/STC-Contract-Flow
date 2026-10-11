@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   CircleDot,
   Clock3,
-  FileClock,
   Files,
   Plus,
   TrendingUp,
@@ -131,7 +130,7 @@ export default function DashboardPage() {
         idleDays: daysSince(activityDate(contract), nowMs),
       }))
       .filter((item) => item.idleDays >= 7)
-      .sort((a, b) => b.idleDays - a.idleDays);
+      .toSorted((a, b) => b.idleDays - a.idleDays);
   }, [scopedContracts]);
 
   const criticalAttention = useMemo(
@@ -197,7 +196,7 @@ export default function DashboardPage() {
         averageProgress: Math.round(value.progress / Math.max(1, value.total)),
         completionRate: Math.round((value.completed / Math.max(1, value.total)) * 100),
       }))
-      .sort(
+      .toSorted(
         (a, b) =>
           b.completionRate - a.completionRate
           || b.averageProgress - a.averageProgress
