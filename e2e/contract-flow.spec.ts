@@ -18,6 +18,13 @@ test("protected routes redirect unauthenticated users to login", async ({ page }
   await expect(page.locator('input[type="email"]')).toBeVisible();
 });
 
+test("dashboard waits for all historical contracts before publishing totals", async ({ page }) => {
+  await login(page);
+  await expect(page.getByTestId("dashboard-total")).toHaveText("125", { timeout: 30_000 });
+  await expect(page.getByText("Preparing complete analytics")).toHaveCount(0);
+  // A final dashboard snapshot must match the seeded register's 125 contracts.
+});
+
 test("admin can create, progress, reopen and delete a contract", async ({ page }) => {
   await login(page);
   await page.goto("/contracts/new");

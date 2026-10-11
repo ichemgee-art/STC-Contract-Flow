@@ -156,6 +156,7 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
   const tailCursorRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
   const hasMoreRef = useRef(false);
   const loadingMoreRef = useRef(false);
+  const loadMorePromiseRef = useRef<Promise<ContractRecord[]> | null>(null);
   const totalCountRef = useRef(0);
   const uidRef = useRef("");
 
@@ -183,36 +184,59 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
     }
   }, [publishHasMore]);
 
-  const loadMore = useCallback(async () => {
-    if (loadingMoreRef.current || !hasMoreRef.current || !tailCursorRef.current) {
-      return mergeUnique(recentRef.current, olderRef.current);
+  const loadMore = useCallback((): Promise<ContractRecord[]> => {
+    // Concurrent dashboard, search, and export callers must share one in-flight page.
+    // Returning a stale array here could silently truncate reports.
+    if (loadMorePromiseRef.current) return loadMorePromiseRef.current;
+    if (!hasMoreRef.current || !tailCursorRef.current) {
+      return Promise.resolve(mergeUnique(recentRef.current, olderRef.current));
     }
 
+    const uidAtStart = uidRef.current;
     loadingMoreRef.current = true;
     setLoadingMore(true);
 
-    try {
-      const page = await loadOlderContracts(tailCursorRef.current);
-      const recentIds = new Set(recentRef.current.map((contract) => contract.id));
-      const nextOlder = mergeUnique(
-        page.contracts.filter((contract) => !recentIds.has(contract.id)),
-        olderRef.current,
-      );
+    const task = (async (): Promise<ContractRecord[]> => {
+      try {
+        const page = await loadOlderContracts(tailCursorRef.current);
+        if (uidRef.current !== uidAtStart || !uidAtStart) {
+          throw new Error("Authentication changed during contract pagination.");
+        }
 
-      olderRef.current = nextOlder;
-      setOlderContracts(nextOlder);
-      tailCursorRef.current = page.cursor;
+        const recentIds = new Set(recentRef.current.map((contract) => contract.id));
+        const nextOlder = mergeUnique(
+          page.contracts.filter((contract) => !recentIds.has(contract.id)),
+          olderRef.current,
+        );
 
-      const loadedCount = mergeUnique(recentRef.current, nextOlder).length;
-      const countAllowsMore =
-        totalCountRef.current === 0 || loadedCount < totalCountRef.current;
-      publishHasMore(Boolean(page.cursor) && page.hasMore && countAllowsMore);
+        olderRef.current = nextOlder;
+        setOlderContracts(nextOlder);
+        tailCursorRef.current = page.cursor;
 
-      return mergeUnique(recentRef.current, nextOlder);
-    } finally {
-      loadingMoreRef.current = false;
-      setLoadingMore(false);
-    }
+        const loadedCount = mergeUnique(recentRef.current, nextOlder).length;
+        const countAllowsMore =
+          totalCountRef.current === 0 || loadedCount < totalCountRef.current;
+        publishHasMore(Boolean(page.cursor) && page.hasMore && countAllowsMore);
+        setError(null);
+        return mergeUnique(recentRef.current, nextOlder);
+      } catch (cause) {
+        if (uidRef.current === uidAtStart) {
+          setError(cause instanceof Error ? cause : new Error("Could not load contract history."));
+        }
+        throw cause;
+      } finally {
+        loadingMoreRef.current = false;
+        if (uidRef.current === uidAtStart) setLoadingMore(false);
+      }
+    })();
+
+    loadMorePromiseRef.current = task;
+    // Release the shared promise only after it settles; no unhandled rejection.
+    void task.then(
+      () => { if (loadMorePromiseRef.current === task) loadMorePromiseRef.current = null; },
+      () => { if (loadMorePromiseRef.current === task) loadMorePromiseRef.current = null; },
+    );
+    return task;
   }, [publishHasMore]);
 
   const ensureAllLoaded = useCallback(async () => {
@@ -220,7 +244,9 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
     while (hasMoreRef.current && tailCursorRef.current) {
       const before = all.length;
       all = await loadMore();
-      if (all.length <= before) break;
+      if (all.length <= before && hasMoreRef.current) {
+        throw new Error("Contract history did not advance. Reports cannot be considered complete.");
+      }
       await new Promise((resolve) => window.setTimeout(resolve, 0));
     }
     return all;
