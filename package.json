@@ -37,5 +37,10 @@
   },
   "engines": {
     "node": "24.x"
+  },
+  "overrides": {
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "1.13.7"
+    }
   }
 }
