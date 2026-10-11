@@ -79,8 +79,8 @@ export default function ContractsPage() {
       const result = await deleteContract(pendingCleanupId);
       if (result.cleanupPending) {
         setError(language === "ar"
-          ? "تم حذف العقد، لكن ما زالت بعض الملفات أو الملاحظات تحتاج تنظيفًا. أعد المحاولة."
-          : "Contract deleted, but some attachments or notes still need cleanup. Retry.");
+          ? "تم حذف العقد، لكن هناك ملفات أو ملاحظات أو تسجيل تدقيق يحتاج استكمالًا. أعد المحاولة."
+          : "Contract deleted, but attachments, notes or its audit journal still need completing. Retry.");
         return;
       }
       setPendingCleanupId("");
@@ -348,8 +348,8 @@ export default function ContractsPage() {
         <div className="notice notice-error" role="alert">
           <p>
             {language === "ar"
-              ? "اتحذف العقد من السجل، لكن تنظيف بعض المرفقات أو الملاحظات لم يكتمل. أعد محاولة التنظيف."
-              : "The contract was removed, but some attachment or note cleanup is still pending."}
+              ? "اتحذف العقد من السجل، لكن تنظيف بعض المرفقات أو الملاحظات أو تسجيل الحذف لم يكتمل. أعد المحاولة."
+              : "The contract was removed, but attachment, note or audit-journal cleanup is still pending."}
           </p>
           {profile?.role === "admin" && (
             <button className="button button-secondary" type="button"

@@ -382,9 +382,11 @@ export async function deleteContract(id: string) {
       const payload = await response.json().catch(() => null) as {
         attachmentCleanupPending?: number;
         notesCleanupPending?: boolean;
+        auditJournalPending?: boolean;
       } | null;
       const cleanupPending =
         Boolean(payload?.notesCleanupPending)
+        || Boolean(payload?.auditJournalPending)
         || Number(payload?.attachmentCleanupPending ?? 0) > 0;
 
       if (cleanupPending && attempt < retryDelays.length) {
@@ -399,6 +401,7 @@ export async function deleteContract(id: string) {
         cleanupPending,
         attachmentCleanupPending: Number(payload?.attachmentCleanupPending ?? 0),
         notesCleanupPending: Boolean(payload?.notesCleanupPending),
+        auditJournalPending: Boolean(payload?.auditJournalPending),
       };
     }
 
