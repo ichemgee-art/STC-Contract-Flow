@@ -4099,3 +4099,86 @@ html[dir="rtl"] .attachment-share {
     transition: none !important;
   }
 }
+
+/* 2026 readability: contract flow. Keep original layout and behavior. */
+.hero-copy > p:not(.eyebrow) { font-size: 15px; line-height: 1.8; }
+.hero-score-ring span { font-size: 12px; }
+.hero-score > p { max-width: 180px; font-size: 12px; line-height: 1.6; }
+.stat-card { min-height: 116px; }
+.stat-card span { font-size: 12.5px; line-height: 1.45; }
+.stat-card strong { font-size: 30px; }
+.section-heading h3,
+.form-section-heading h3 { font-size: 20px; line-height: 1.45; }
+.section-heading > a,
+.section-heading > span { font-size: 12.5px; }
+.pipeline-label strong { font-size: 13px; line-height: 1.5; }
+.pipeline-label span,
+.pipeline-row b { font-size: 11.5px; }
+.pipeline-row { grid-template-columns: minmax(155px, 0.9fr) minmax(85px, 1.2fr) 30px; }
+.recent-company strong,
+.rep-copy strong,
+.bottleneck-copy strong,
+.attention-row strong { font-size: 13px; }
+.recent-company span,
+.recent-meta > span,
+.rep-copy span,
+.attention-row span { font-size: 11.5px; line-height: 1.6; }
+.rep-rank { font-size: 12px; }
+.trend-legend span,
+.trend-month strong,
+.trend-month > span { font-size: 11px; }
+.attention-row > b { font-size: 12px; }
+.bottleneck-copy span { font-size: 13px; }
+.analytics-empty { font-size: 13px; }
+.dashboard-period-control > div,
+.dashboard-period-control select { font-size: 13px; }
+.status-badge { font-size: 11.5px; }
+.search-box input,
+.filter-select { font-size: 14px; }
+.contracts-table th { font-size: 11px; }
+.table-company strong,
+.cell-main { font-size: 12.5px; }
+.table-company span,
+.cell-sub { font-size: 11px; }
+.contract-number-cell,
+.mobile-contract-number { font-size: 12px; }
+.detail-metric > span { font-size: 12px; }
+.detail-metric > strong { font-size: 14px; }
+.stage-copy strong { font-size: 14px; }
+.stage-copy span { font-size: 11.5px; }
+.stage-state { font-size: 11px; }
+.record-list dt { font-size: 12px; }
+.record-list dd { font-size: 13px; }
+.field small { font-size: 12px; }
+.form-section-heading p:not(.eyebrow) { font-size: 14px; }
+.contract-note-meta strong { font-size: 13px; }
+.contract-note-meta span { font-size: 11.5px; }
+.contract-note-item p { font-size: 13px; }
+.advanced-filter-grid label > span { font-size: 12.5px; }
+.delete-modal-contract > span { font-size: 12px; }
+.delete-modal-alert p { font-size: 12px; }
+
+@media (max-width: 760px) {
+  .hero-copy > p:not(.eyebrow) { font-size: 14px; }
+  .stat-card { min-height: 114px; }
+  .stat-card span { font-size: 12px; }
+  .pipeline-row { grid-template-columns: minmax(110px, 0.9fr) minmax(60px, 1.1fr) 28px; gap: 9px; }
+  .pipeline-label strong { font-size: 12px; }
+  .pipeline-label span,
+  .pipeline-row b { font-size: 10.5px; }
+  .mobile-stage small { font-size: 10px; line-height: 1.45; }
+  .mobile-card-head span,
+  .mobile-contract-meta span { font-size: 12px; }
+}
+
+@media (max-width: 620px) {
+  .stat-card { padding: 14px; }
+  .stat-card strong { font-size: 27px; }
+  .section-heading h3,
+  .form-section-heading h3 { font-size: 18px; }
+  .dashboard-period-control select { font-size: 13px; }
+  .trend-month strong { font-size: 10px; }
+  .trend-month > span { font-size: 9px; }
+  .hero-score > p { font-size: 11.5px; }
+  .delete-modal-contract > span { font-size: 11.5px; }
+}
