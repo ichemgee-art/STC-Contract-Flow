@@ -33,11 +33,20 @@ async function loadProfile(uid: string) {
   if (!snapshot.exists()) return null;
 
   const data = snapshot.data();
+  const role =
+    data.role === "admin"
+      ? "admin"
+      : data.role === "editor"
+        ? "editor"
+        : null;
+
+  if (!role) return null;
+
   return {
     uid,
-    displayName: data.displayName ?? "STC User",
-    email: data.email ?? "",
-    role: data.role === "admin" ? "admin" : "editor",
+    displayName: typeof data.displayName === "string" ? data.displayName : "STC User",
+    email: typeof data.email === "string" ? data.email : "",
+    role,
     active: data.active === true,
   } satisfies UserProfile;
 }
