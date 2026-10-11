@@ -187,10 +187,12 @@ export default function ContractDetailsPage() {
     setDeleting(true);
     setError("");
     try {
-      await deleteContract(contract.id);
+      const result = await deleteContract(contract.id);
       removeContractLocal(contract.id);
       setShowDeleteModal(false);
-      router.replace("/contracts");
+      router.replace(result.cleanupPending
+        ? "/contracts?cleanup=pending&id=" + encodeURIComponent(contract.id)
+        : "/contracts");
     } catch {
       setError(t("deleteContractError"));
       setDeleting(false);
