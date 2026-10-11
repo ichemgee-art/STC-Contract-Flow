@@ -146,6 +146,17 @@ export async function DELETE(
           abortSignal: AbortSignal.timeout(30_000),
         });
 
+    const attemptId = createDeletionAttemptId();
+    // If the private audit store cannot record who requested deletion, do not
+    // delete the contract. This is fail-closed for a destructive operation.
+    await appendDeletionJournal({
+      attemptId,
+      contractId: id,
+      actorUid: lockedMember.uid,
+      actorName: lockedMember.displayName,
+      outcome: "requested",
+    });
+
     const tombstonePath = contractTombstonePath(id);
     let tombstoneCreated = false;
 
@@ -168,17 +179,6 @@ export async function DELETE(
     // once the parent is gone, closing the create-note-vs-delete race. The
     // private Blob tombstone makes every pre-existing QR token fail immediately,
     // even if attachment cleanup later has a transient failure.
-    const attemptId = createDeletionAttemptId();
-    // If the private audit store cannot record who requested deletion, do not
-    // delete the contract. This is fail-closed for a destructive operation.
-    await appendDeletionJournal({
-      attemptId,
-      contractId: id,
-      actorUid: lockedMember.uid,
-      actorName: lockedMember.displayName,
-      outcome: "requested",
-    });
-
     const deletion = await deleteFirestoreContract(id, token);
     if (!deletion.ok && deletion.status !== 404) {
       if (tombstoneCreated) {
