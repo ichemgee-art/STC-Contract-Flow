@@ -431,7 +431,7 @@ export default function DashboardPage() {
       <section className="stats-grid dashboard-stats-extended">
         <article className="stat-card card">
           <div className="stat-icon"><Files size={20} /></div>
-          <div><span>{t("totalContracts")}</span><strong>{loading ? "—" : stats.total}</strong></div>
+          <div><span>{t("totalContracts")}</span><strong data-testid="dashboard-total">{loading ? "—" : stats.total}</strong></div>
         </article>
         <article className="stat-card card">
           <div className="stat-icon blue"><CircleDot size={20} /></div>
