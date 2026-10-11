@@ -9,7 +9,7 @@ import { useLanguage } from "@/components/LanguageProvider";
 import { SmartLink } from "@/components/SmartLink";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SuccessCelebration } from "@/components/SuccessCelebration";
-import { assignMissingContractNumbers, updateContractStage } from "@/lib/contracts";
+import { assignMissingContractNumbers, deleteContract, updateContractStage } from "@/lib/contracts";
 import { playUiSound, primeUiAudio } from "@/lib/sounds";
 import {
   canCompleteStage,
@@ -61,6 +61,38 @@ export default function ContractsPage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [showCompletionCelebration, setShowCompletionCelebration] = useState(false);
+  const [pendingCleanupId, setPendingCleanupId] = useState("");
+  const [retryingCleanup, setRetryingCleanup] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("cleanup") === "pending") {
+      setPendingCleanupId(params.get("id") || "");
+    }
+  }, []);
+
+  async function retryPendingCleanup() {
+    if (!pendingCleanupId || retryingCleanup || profile?.role !== "admin") return;
+    setRetryingCleanup(true);
+    setError("");
+    try {
+      const result = await deleteContract(pendingCleanupId);
+      if (result.cleanupPending) {
+        setError(language === "ar"
+          ? "تم حذف العقد، لكن ما زالت بعض الملفات أو الملاحظات تحتاج تنظيفًا. أعد المحاولة."
+          : "Contract deleted, but some attachments or notes still need cleanup. Retry.");
+        return;
+      }
+      setPendingCleanupId("");
+      window.history.replaceState(window.history.state, "", "/contracts");
+    } catch {
+      setError(language === "ar"
+        ? "تعذرت إعادة تنظيف ملفات العقد المحذوف. أعد المحاولة."
+        : "Could not retry cleanup for the deleted contract.");
+    } finally {
+      setRetryingCleanup(false);
+    }
+  }
 
   function dateText(contract: ContractRecord) {
     return contract.createdAt
@@ -312,6 +344,23 @@ export default function ContractsPage() {
         onComplete={() => setShowCompletionCelebration(false)}
       />
       <div className="page-stack">
+      {pendingCleanupId && (
+        <div className="notice notice-error" role="alert">
+          <p>
+            {language === "ar"
+              ? "اتحذف العقد من السجل، لكن تنظيف بعض المرفقات أو الملاحظات لم يكتمل. أعد محاولة التنظيف."
+              : "The contract was removed, but some attachment or note cleanup is still pending."}
+          </p>
+          {profile?.role === "admin" && (
+            <button className="button button-secondary" type="button"
+              disabled={retryingCleanup} onClick={() => void retryPendingCleanup()}>
+              {retryingCleanup
+                ? (language === "ar" ? "جاري التنظيف…" : "Cleaning…")
+                : (language === "ar" ? "إعادة محاولة التنظيف" : "Retry cleanup")}
+            </button>
+          )}
+        </div>
+      )}
       <section className="page-intro">
         <div>
           <p className="eyebrow">{t("contractRegister")}</p>
