@@ -6,8 +6,6 @@ on:
   pull_request:
     branches: ["main"]
 
-permissions:
-  contents: write
 
 jobs:
   build:
@@ -23,38 +21,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
+          cache: "npm"
 
       - name: Install dependencies
-        run: npm install --no-fund
-
-      - name: Persist generated lockfile on audit branch
-        if: github.event_name == 'pull_request' && github.head_ref == 'security/audit-hardening-2026-10-11'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          if gh api "repos/${{ github.repository }}/contents/package-lock.json?ref=${HEAD_REF}" >/dev/null 2>&1; then
-            exit 0
-          fi
-          python - <<'PY'
-          import base64, json, os
-          with open("package-lock.json", "rb") as source:
-              content = base64.b64encode(source.read()).decode("ascii")
-          with open("/tmp/package-lock-payload.json", "w", encoding="utf-8") as target:
-              json.dump({
-                  "message": "Lock audited dependencies",
-                  "branch": os.environ["HEAD_REF"],
-                  "content": content,
-              }, target)
-          PY
-          gh api --method PUT "repos/${{ github.repository }}/contents/package-lock.json" \
-            --input /tmp/package-lock-payload.json
+        run: npm ci --no-audit --no-fund
 
       - name: Lint
         run: npm run lint
