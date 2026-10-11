@@ -23,6 +23,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "true",
+      NEXT_PUBLIC_CONTRACT_AUDIT_ENABLED: "true",
       NEXT_PUBLIC_FIREBASE_API_KEY: "demo-api-key",
       NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "demo-stc-contract-flow.firebaseapp.com",
       NEXT_PUBLIC_FIREBASE_PROJECT_ID: "demo-stc-contract-flow",
