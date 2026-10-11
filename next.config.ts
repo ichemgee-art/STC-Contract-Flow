@@ -15,7 +15,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com" + emulatorConnect,
+  "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com wss://*.googleapis.com wss://*.firebaseio.com" + emulatorConnect,
   "frame-src 'self' blob: https://*.firebaseapp.com",
   "worker-src 'self' blob:",
   "media-src 'self' blob:",
