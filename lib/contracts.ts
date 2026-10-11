@@ -135,22 +135,39 @@ function formatContractNumber(year: number, sequence: number) {
 async function allocateContractNumber(
   transaction: Transaction,
   year: number,
+  contractId: string,
 ) {
   const counterRef = doc(db, "contractCounters", String(year));
   const counterSnapshot = await transaction.get(counterRef);
   const current = counterSnapshot.exists()
     ? Number(counterSnapshot.data().value ?? 0)
     : 0;
+
+  if (!Number.isSafeInteger(current) || current < 0) {
+    throw new Error("Contract counter is invalid.");
+  }
+
   const next = current + 1;
+  const contractNumber = formatContractNumber(year, next);
+  const reservationRef = doc(db, "contractNumberReservations", contractNumber);
+
+  transaction.set(reservationRef, {
+    contractId,
+    year,
+    sequence: next,
+    createdAt: serverTimestamp(),
+  });
 
   transaction.set(counterRef, {
     year,
     value: next,
+    lastReservation: contractNumber,
+    lastContractId: contractId,
     updatedAt: serverTimestamp(),
   });
 
   return {
-    contractNumber: formatContractNumber(year, next),
+    contractNumber,
     contractYear: year,
     contractSequence: next,
   };
@@ -163,10 +180,12 @@ export async function createContract(
   const stages = Object.fromEntries(STAGE_KEYS.map((key) => [key, false])) as ContractStages;
   const stageDates = Object.fromEntries(STAGE_KEYS.map((key) => [key, null]));
   const contractRef = doc(contractsRef);
-  const year = new Date().getFullYear();
+  // Firestore request.time is UTC. Use the same year definition client-side so
+  // New Year's rollover is deterministic across users in different timezones.
+  const year = new Date().getUTCFullYear();
 
   await runTransaction(db, async (transaction) => {
-    const identifier = await allocateContractNumber(transaction, year);
+    const identifier = await allocateContractNumber(transaction, year, contractRef.id);
 
     transaction.set(contractRef, {
       ...input,
@@ -224,7 +243,7 @@ export async function updateContractStage(contract: ContractRecord, stage: Stage
     // A realtime snapshot can be a few milliseconds behind another user's edit.
     // Always decide against the latest Firestore state so one user cannot
     // accidentally overwrite another user's workflow progress.
-    if (currentStages[stage] === checked) return;
+    if (currentStages[stage] === checked) return false;
 
     const nextStages = { ...currentStages };
     const nextDates: Record<StageKey, unknown> = { ...currentDates };
@@ -259,6 +278,7 @@ export async function updateContractStage(contract: ContractRecord, stage: Stage
       stageDates: nextDates,
       updatedAt: serverTimestamp(),
     });
+    return true;
   });
 }
 
@@ -357,9 +377,9 @@ export async function assignMissingContractNumbers(contracts: ContractRecord[]) 
       const createdAt = data.createdAt;
       const year =
         createdAt && typeof createdAt.toDate === "function"
-          ? createdAt.toDate().getFullYear()
-          : new Date().getFullYear();
-      const identifier = await allocateContractNumber(transaction, year);
+          ? createdAt.toDate().getUTCFullYear()
+          : new Date().getUTCFullYear();
+      const identifier = await allocateContractNumber(transaction, year, contract.id);
 
       transaction.update(contractRef, {
         ...identifier,
