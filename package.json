@@ -10,7 +10,8 @@
     "e2e:run": "playwright test",
     "typecheck": "tsc --noEmit",
     "test:rules": "firebase emulators:exec --project demo-stc-contract-flow-rules --only firestore \"node --test tests/firestore.rules.test.mjs\"",
-    "security:audit": "npm audit --omit=dev --audit-level=high"
+    "security:audit": "npm audit --omit=dev --audit-level=high",
+    "lint": "eslint . --max-warnings=50"
   },
   "dependencies": {
     "firebase": "12.19.0",
@@ -31,7 +32,9 @@
     "@playwright/test": "1.63.0",
     "firebase-admin": "14.5.0",
     "firebase-tools": "15.30.2",
-    "@firebase/rules-unit-testing": "6.0.0"
+    "@firebase/rules-unit-testing": "6.0.0",
+    "eslint": "10.12.0",
+    "eslint-config-next": "16.3.8"
   },
   "engines": {
     "node": "24.x"
