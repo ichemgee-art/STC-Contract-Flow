@@ -72,7 +72,11 @@ legacy reservation alone is not evidence of a duplicate number.
 
 ## Environment isolation
 
-Production and Preview should not share the same Firebase project, Vercel Blob store, or server secrets. Use separate non-production resources and scope Vercel environment variables accordingly.
+Production uses Firebase `stc-contract-flow` and private Blob store `store_beAq4JiSWexxCh86`. Preview uses Firebase `stc-contract-flow-preview` and private Blob store `store_RAYJhxZ46nLqTZCB`. Scope every Firebase configuration variable, Blob token, and attachment-share secret to its environment. Never copy production contracts, files, or user credentials into Preview.
+
+`next.config.ts` calls `assertPreviewIsolation` before building. Vercel Preview builds fail unless all Firebase identifiers and `BLOB_STORE_ID` match the dedicated Preview resources, a Blob token is present, and the share secret has at least 32 characters. The guard does not introspect opaque API keys or tokens: also verify the Blob environment variable's store binding in Vercel and generate independent secrets. Local emulator CI and Production builds are unaffected.
+
+Changing environment variables does not rewrite previously built deployments. Retire or block old Preview deployment URLs and their aliases before considering an environment migration complete. Keep Preview deployments protected by Vercel Authentication.
 
 Preview deployments should remain protected while they can reach any business data.
 
