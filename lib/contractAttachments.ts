@@ -36,15 +36,15 @@ function loadImage(file: File) {
     const url = URL.createObjectURL(file);
     const image = new Image();
 
-    image.onload = () => {
+    image.addEventListener("load", () => {
       URL.revokeObjectURL(url);
       resolve(image);
-    };
+    }, { once: true });
 
-    image.onerror = () => {
+    image.addEventListener("error", () => {
       URL.revokeObjectURL(url);
       reject(new Error("Unsupported image format."));
-    };
+    }, { once: true });
 
     image.src = url;
   });
