@@ -16,7 +16,7 @@ channel?.addEventListener("message", () => {
 
 function notifyOtherTabs(type: string) {
   if (!channel) return;
-  channel.postMessage({ type });
+  BroadcastChannel.prototype.postMessage.call(channel, { type });
 }
 
 async function removeLegacyCaches() {
