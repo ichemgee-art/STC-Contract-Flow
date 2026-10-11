@@ -45,6 +45,66 @@ function uint24LE(bytes: Uint8Array, offset: number) {
   return bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
 }
 
+function jpegHasPrivateMetadata(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 2;
+
+  while (offset + 4 <= bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
+    if (offset >= bytes.length) break;
+
+    const marker = bytes[offset++];
+    if (marker === 0xd8 || marker === 0xd9) continue;
+    if (marker === 0xda) break;
+    if (offset + 2 > bytes.length) break;
+
+    const segmentLength = view.getUint16(offset, false);
+    if (segmentLength < 2 || offset + segmentLength > bytes.length) break;
+    if (marker === 0xe1) return true; // EXIF/XMP APP1 metadata.
+    offset += segmentLength;
+  }
+
+  return false;
+}
+
+function pngHasPrivateMetadata(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 8;
+
+  while (offset + 12 <= bytes.length) {
+    const length = view.getUint32(offset, false);
+    const type = String.fromCharCode(...bytes.slice(offset + 4, offset + 8));
+    if (type === "eXIf") return true;
+    if (type === "IEND") break;
+    const next = offset + 12 + length;
+    if (next <= offset || next > bytes.length) break;
+    offset = next;
+  }
+
+  return false;
+}
+
+function webpHasPrivateMetadata(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 12;
+
+  while (offset + 8 <= bytes.length) {
+    const type = String.fromCharCode(...bytes.slice(offset, offset + 4));
+    const length = view.getUint32(offset + 4, true);
+    if (type === "EXIF" || type === "XMP ") return true;
+    const padded = length + (length % 2);
+    const next = offset + 8 + padded;
+    if (next <= offset || next > bytes.length) break;
+    offset = next;
+  }
+
+  return false;
+}
+
 function jpegDimensions(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let offset = 2;
@@ -171,6 +231,23 @@ async function validateAttachmentContent(file: File) {
 
   if (!detectedType || !ALLOWED_TYPES.has(detectedType)) {
     return { ok: false as const, reason: "Invalid attachment content." };
+  }
+
+  if (file.type !== detectedType) {
+    return { ok: false as const, reason: "Attachment MIME type does not match its content." };
+  }
+
+  const hasPrivateMetadata =
+    detectedType === "image/jpeg"
+      ? jpegHasPrivateMetadata(bytes)
+      : detectedType === "image/png"
+        ? pngHasPrivateMetadata(bytes)
+        : detectedType === "image/webp"
+          ? webpHasPrivateMetadata(bytes)
+          : false;
+
+  if (hasPrivateMetadata) {
+    return { ok: false as const, reason: "Image metadata must be removed before upload." };
   }
 
   if (detectedType === "application/pdf") {
