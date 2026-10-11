@@ -27,7 +27,10 @@ jobs:
           java-version: "21"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --no-fund
+
+      - name: Run Firestore security rules tests
+        run: npm run test:rules
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
