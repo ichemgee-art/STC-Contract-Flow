@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+import { assertPreviewIsolation } from "./lib/environmentIsolation";
+
+assertPreviewIsolation(process.env);
 
 const emulatorConnect =
   process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true"

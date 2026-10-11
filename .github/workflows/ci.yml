@@ -38,6 +38,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Preview isolation regression tests
+        run: node --test tests/environment-isolation.test.mjs
+
       - name: Production dependency audit
         run: npm run security:audit
 
